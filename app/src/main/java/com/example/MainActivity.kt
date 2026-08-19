@@ -152,6 +152,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
     val visualizerAmplitudes by viewModel.visualizerAmplitudes.collectAsStateWithLifecycle()
     val waveformSamples by viewModel.waveformSamples.collectAsStateWithLifecycle()
 
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val allSongs by viewModel.allSongs.collectAsStateWithLifecycle()
     val displayedSongs by viewModel.displayedSongs.collectAsStateWithLifecycle()
     val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
@@ -343,6 +344,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
                 when (tab) {
                     0 -> TracksScreen(
                         songs = displayedSongs,
+                        isLoading = isLoading,
                         currentPlayingSong = currentSong,
                         isPlaying = isPlaying,
                         searchQuery = searchQuery,
@@ -374,6 +376,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
 
                     1 -> PlaylistsScreen(
                         playlistsWithSongs = allPlaylistsWithSongs,
+                        isLoading = isLoading,
                         allSongs = allSongs,
                         favoriteSongs = favoriteSongs,
                         recentlyPlayed = recentlyPlayed,

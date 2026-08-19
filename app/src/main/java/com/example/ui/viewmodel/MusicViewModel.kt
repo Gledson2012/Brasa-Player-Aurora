@@ -86,6 +86,9 @@ class MusicViewModel(
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
 
     // DB Songs Flow
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     val allSongs: StateFlow<List<Song>> = repository.allSongs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -264,6 +267,9 @@ class MusicViewModel(
         // Initialize default queue when songs load
         viewModelScope.launch {
             allSongs.collect { songs ->
+                if (_isLoading.value) {
+                    _isLoading.value = false
+                }
                 if (songs.isNotEmpty() && currentSong.value == null) {
                     val saved = repository.getUserSettingsOnce()
                     val savedIndex = saved.lastPlayedSongId

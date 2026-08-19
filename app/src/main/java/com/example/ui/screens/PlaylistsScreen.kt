@@ -74,10 +74,12 @@ import com.example.ui.components.DeletePlaylistConfirmDialog
 import com.example.ui.components.PLAYLIST_GRADIENTS
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.SongCoverArt
+import com.example.ui.components.PlaylistItemSkeleton
 
 @Composable
 fun PlaylistsScreen(
     playlistsWithSongs: List<PlaylistWithSongs>,
+    isLoading: Boolean = false,
     allSongs: List<Song> = emptyList(),
     favoriteSongs: List<Song>,
     recentlyPlayed: List<Song>,
@@ -317,7 +319,12 @@ fun PlaylistsScreen(
                     }
                 }
 
-                if (visiblePlaylists.isEmpty()) {
+                if (isLoading && playlistsWithSongs.isEmpty()) {
+                    // Show skeleton loading while initial data is loading
+                    items(4) {
+                        PlaylistItemSkeleton()
+                    }
+                } else if (visiblePlaylists.isEmpty()) {
                     item {
                         Card(
                             modifier = Modifier

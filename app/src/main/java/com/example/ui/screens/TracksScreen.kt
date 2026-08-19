@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Song
 import com.example.ui.components.SongCoverArt
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.TrackItemSkeleton
 import com.example.ui.components.formatTimeMs
 import com.example.ui.components.hapticTick
 import com.example.ui.viewmodel.SortOption
@@ -80,6 +81,7 @@ private enum class TrackFilter(val label: String) {
 @Composable
 fun TracksScreen(
     songs: List<Song>,
+    isLoading: Boolean = false,
     currentPlayingSong: Song?,
     isPlaying: Boolean,
     searchQuery: String,
@@ -289,7 +291,17 @@ fun TracksScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Songs List
-        if (visibleSongs.isEmpty()) {
+        if (isLoading && songs.isEmpty()) {
+            // Show skeleton loading while initial data is loading
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(8) {
+                    TrackItemSkeleton()
+                }
+            }
+        } else if (visibleSongs.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
