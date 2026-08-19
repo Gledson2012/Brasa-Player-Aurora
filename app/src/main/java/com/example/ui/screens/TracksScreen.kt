@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
@@ -78,10 +80,13 @@ private enum class TrackFilter(val label: String) {
     UNAVAILABLE("Indisponíveis")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TracksScreen(
     songs: List<Song>,
     isLoading: Boolean = false,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     currentPlayingSong: Song?,
     isPlaying: Boolean,
     searchQuery: String,
@@ -328,28 +333,34 @@ fun TracksScreen(
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(visibleSongs, key = { _, s -> s.id }) { index, song ->
-                    val isCurrent = currentPlayingSong?.id == song.id
-                    TrackListItem(
-                        song = song,
-                        isCurrent = isCurrent,
-                        isPlaying = isPlaying && isCurrent,
-                        onClick = { onSongClick(visibleSongs, index) },
-                        onToggleFavorite = { onToggleFavorite(song) },
-                        onAddToPlaylist = { onAddToPlaylist(song) },
-                        onEditSong = { onEditSong(song) },
-                        onRelinkSong = { onRelinkSong(song) },
-                        onDeleteSong = { onDeleteSong(song) }
-                    )
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    itemsIndexed(visibleSongs, key = { _, s -> s.id }) { index, song ->
+                        val isCurrent = currentPlayingSong?.id == song.id
+                        TrackListItem(
+                            song = song,
+                            isCurrent = isCurrent,
+                            isPlaying = isPlaying && isCurrent,
+                            onClick = { onSongClick(visibleSongs, index) },
+                            onToggleFavorite = { onToggleFavorite(song) },
+                            onAddToPlaylist = { onAddToPlaylist(song) },
+                            onEditSong = { onEditSong(song) },
+                            onRelinkSong = { onRelinkSong(song) },
+                            onDeleteSong = { onDeleteSong(song) }
+                        )
+                    }
+                    item {
+                        Spacer(modifier = Modifier.height(90.dp))
+                    }
                 }
-                item {
-                    Spacer(modifier = Modifier.height(90.dp))
-                }
-            }
+            } // end PullToRefreshBox
         }
     }
 }

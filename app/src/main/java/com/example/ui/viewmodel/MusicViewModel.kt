@@ -85,6 +85,27 @@ class MusicViewModel(
     private val _sortOption = MutableStateFlow(SortOption.TITLE)
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
 
+    // Onboarding State
+    private val _onboardingCompleted = MutableStateFlow(false)
+    val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
+
+    // Pull-to-refresh state
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    fun refreshLibrary() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            // Re-scan local storage to pick up any new files
+            try {
+                val context = getApplication<Application>().applicationContext
+                repository.scanDeviceAudio(context)
+            } catch (_: Exception) { }
+            delay(800) // minimum visual feedback time
+            _isRefreshing.value = false
+        }
+    }
+
     // DB Songs Flow
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -191,6 +212,13 @@ class MusicViewModel(
     private var lastPersistedPositionMs: Long = Long.MIN_VALUE
 
     init {
+        // Load onboarding state
+        viewModelScope.launch {
+            themeDataStore.onboardingCompletedFlow.collect { completed ->
+                _onboardingCompleted.value = completed
+            }
+        }
+
         playerEngine.setOnSongChangedListener { song ->
             lastFmScrobbledSongId = null
             viewModelScope.launch {
@@ -329,6 +357,13 @@ class MusicViewModel(
     }
 
     // ---- UI Navigation / Dialog helpers ----
+    fun completeOnboarding() {
+        viewModelScope.launch {
+            themeDataStore.setOnboardingCompleted(true)
+            _onboardingCompleted.value = true
+        }
+    }
+
     fun selectTab(index: Int) {
         _selectedTab.value = index.coerceIn(0, 3)
     }

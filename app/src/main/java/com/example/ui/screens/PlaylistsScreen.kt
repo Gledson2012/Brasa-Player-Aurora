@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -78,10 +80,13 @@ import com.example.ui.components.SongCoverArt
 import com.example.ui.components.PlaylistItemSkeleton
 import com.example.ui.components.hapticTick
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistsScreen(
     playlistsWithSongs: List<PlaylistWithSongs>,
     isLoading: Boolean = false,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     allSongs: List<Song> = emptyList(),
     favoriteSongs: List<Song>,
     recentlyPlayed: List<Song>,
@@ -146,14 +151,19 @@ fun PlaylistsScreen(
         )
     } else {
         // Main Playlists Overview
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-                    .testTag("playlists_screen"),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                        .testTag("playlists_screen"),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                 item {
                     SectionHeader(
                         title = "Playlists",
@@ -460,8 +470,9 @@ fun PlaylistsScreen(
                 item {
                     Spacer(modifier = Modifier.height(90.dp))
                 }
-            }
-        }
+            } // end LazyColumn
+        } // end Box
+    } // end PullToRefreshBox
     }
 }
 
@@ -474,26 +485,27 @@ fun SmartPlaylistCard(
     modifier: Modifier = Modifier,
     testTag: String = "",
     onClick: () -> Unit
-) {            Card(
-                            modifier = modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { onClick() }
-                                .testTag(testTag),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                            border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Brush.linearGradient(gradient)),
+) {
+    Card(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .testTag(testTag),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Brush.linearGradient(gradient)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

@@ -26,6 +26,7 @@ val Context.themeDataStore: DataStore<Preferences> by preferencesDataStore(name 
 class ThemePreferencesDataStore(private val context: Context) {
 
     private object PreferencesKeys {
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val PRESET_THEME = stringPreferencesKey("preset_theme")
         val DYNAMIC_COLORS = booleanPreferencesKey("dynamic_colors")
@@ -39,6 +40,20 @@ class ThemePreferencesDataStore(private val context: Context) {
         val CUSTOM_SURFACE = longPreferencesKey("custom_surface_color")
         val CUSTOM_BACKGROUND = longPreferencesKey("custom_background_color")
         val CUSTOM_IS_DARK = booleanPreferencesKey("custom_is_dark")
+    }
+
+    val onboardingCompletedFlow: Flow<Boolean> = context.themeDataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { preferences ->
+            preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false
+        }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.themeDataStore.edit { preferences ->
+            preferences[PreferencesKeys.ONBOARDING_COMPLETED] = completed
+        }
     }
 
     val themeConfigFlow: Flow<ThemeConfig> = context.themeDataStore.data

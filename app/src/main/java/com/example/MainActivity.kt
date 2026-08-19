@@ -75,6 +75,7 @@ import com.example.ui.components.QueueSheet
 import com.example.ui.components.SleepTimerDialog
 import com.example.ui.components.SpeedDialog
 import com.example.ui.screens.EqualizerScreen
+import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PlaylistsScreen
 import com.example.ui.screens.ThemesScreen
 import com.example.ui.screens.TracksScreen
@@ -153,7 +154,9 @@ fun MainAppContent(viewModel: MusicViewModel) {
     val visualizerAmplitudes by viewModel.visualizerAmplitudes.collectAsStateWithLifecycle()
     val waveformSamples by viewModel.waveformSamples.collectAsStateWithLifecycle()
 
+    val onboardingCompleted by viewModel.onboardingCompleted.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val allSongs by viewModel.allSongs.collectAsStateWithLifecycle()
     val displayedSongs by viewModel.displayedSongs.collectAsStateWithLifecycle()
     val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
@@ -250,6 +253,11 @@ fun MainAppContent(viewModel: MusicViewModel) {
         viewModel.importAudioFiles(context, uris)
     }
 
+    if (!onboardingCompleted) {
+        OnboardingScreen(
+            onComplete = { viewModel.completeOnboarding() }
+        )
+    } else {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -346,6 +354,8 @@ fun MainAppContent(viewModel: MusicViewModel) {
                     0 -> TracksScreen(
                         songs = displayedSongs,
                         isLoading = isLoading,
+                        isRefreshing = isRefreshing,
+                        onRefresh = { viewModel.refreshLibrary() },
                         currentPlayingSong = currentSong,
                         isPlaying = isPlaying,
                         searchQuery = searchQuery,
@@ -378,6 +388,8 @@ fun MainAppContent(viewModel: MusicViewModel) {
                     1 -> PlaylistsScreen(
                         playlistsWithSongs = allPlaylistsWithSongs,
                         isLoading = isLoading,
+                        isRefreshing = isRefreshing,
+                        onRefresh = { viewModel.refreshLibrary() },
                         allSongs = allSongs,
                         favoriteSongs = favoriteSongs,
                         recentlyPlayed = recentlyPlayed,
@@ -630,4 +642,5 @@ fun MainAppContent(viewModel: MusicViewModel) {
             )
         }
     }
+    } // end else (onboarding)
 }
