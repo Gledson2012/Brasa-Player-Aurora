@@ -30,7 +30,7 @@ import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -49,6 +49,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -74,7 +76,7 @@ private val onboardingPages = listOf(
         gradient = listOf(Color(0xFFFF007F), Color(0xFFFFD166))
     ),
     OnboardingPage(
-        icon = Icons.Default.QueueMusic,
+        icon = Icons.AutoMirrored.Filled.QueueMusic,
         title = "Playlists Inteligentes",
         description = "Organize suas músicas em playlists personalizadas, acesse favoritas, recentes e mais tocadas com um toque.",
         gradient = listOf(Color(0xFF2979FF), Color(0xFF00E5FF))
@@ -188,7 +190,7 @@ fun OnboardingScreen(
                     ) {
                         Icon(
                             imageVector = pageData.icon,
-                            contentDescription = null,
+                            contentDescription = pageData.title,
                             tint = Color.White,
                             modifier = Modifier.size(56.dp)
                         )
@@ -229,6 +231,9 @@ fun OnboardingScreen(
             ) {
                 // Page indicators
                 Row(
+                    modifier = Modifier.semantics {
+                        contentDescription = "Página ${currentPage + 1} de ${onboardingPages.size}"
+                    },
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -256,6 +261,9 @@ fun OnboardingScreen(
                                         )
                                     }
                                 )
+                                .semantics {
+                                    contentDescription = if (isSelected) "Página ${index + 1}, selecionada" else "Página ${index + 1}"
+                                }
                         )
                     }
                 }
