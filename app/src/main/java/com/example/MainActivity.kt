@@ -397,6 +397,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
 
                     2 -> EqualizerScreen(
                         equalizerState = equalizerState,
+                        isLoading = isLoading,
                         isPlaying = isPlaying,
                         visualizerAmplitudes = visualizerAmplitudes,
                         onToggleEnabled = { viewModel.setEqualizerEnabled(it) },

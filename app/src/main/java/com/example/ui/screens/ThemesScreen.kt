@@ -81,6 +81,7 @@ import com.example.data.model.CustomThemeConfig
 import com.example.data.model.ThemeConfig
 import com.example.data.model.ThemeMode
 import com.example.data.model.VisualizerStyle
+import com.example.ui.components.hapticTick
 
 // Curated Vibrant Colors for Custom Palette Builder
 val CUSTOM_PRIMARY_PALETTE = listOf(
@@ -254,7 +255,7 @@ fun ThemesScreen(
             }
 
             OutlinedButton(
-                onClick = onResetDefaults,
+                onClick = { context.hapticTick(); onResetDefaults() },
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("reset_theme_button")
             ) {
@@ -417,7 +418,7 @@ fun ThemesScreen(
 
                 Switch(
                     checked = themeConfig.dynamicColors,
-                    onCheckedChange = { onToggleDynamicColors(it) },
+                    onCheckedChange = { context.hapticTick(); onToggleDynamicColors(it) },
                     enabled = supportsDynamicColor,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,
@@ -526,7 +527,7 @@ fun ThemesScreen(
                                         .size(34.dp)
                                         .clip(CircleShape)
                                         .background(color)
-                                        .clickable { customPrimary = color }
+                                        .clickable { context.hapticTick(); customPrimary = color }
                                         .then(
                                             if (isSelected) Modifier.border(2.5.dp, Color.White, CircleShape)
                                             else Modifier
@@ -566,7 +567,7 @@ fun ThemesScreen(
                                         .size(34.dp)
                                         .clip(CircleShape)
                                         .background(color)
-                                        .clickable { customSecondary = color }
+                                        .clickable { context.hapticTick(); customSecondary = color }
                                         .then(
                                             if (isSelected) Modifier.border(2.5.dp, Color.White, CircleShape)
                                             else Modifier
@@ -606,7 +607,7 @@ fun ThemesScreen(
                                         .size(34.dp)
                                         .clip(CircleShape)
                                         .background(color)
-                                        .clickable { customTertiary = color }
+                                        .clickable { context.hapticTick(); customTertiary = color }
                                         .then(
                                             if (isSelected) Modifier.border(2.5.dp, Color.White, CircleShape)
                                             else Modifier
@@ -726,6 +727,7 @@ fun ThemesScreen(
 
                         Button(
                             onClick = {
+                                context.hapticTick()
                                 onSaveCustomTheme(
                                     customPrimary,
                                     customSecondary,
@@ -772,6 +774,7 @@ fun ThemesScreen(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
                     .clickable {
+                        context.hapticTick()
                         onSelectPresetTheme(themeType)
                         if (themeConfig.themeMode == ThemeMode.CUSTOM) {
                             onSelectThemeMode(ThemeMode.DARK)
@@ -886,7 +889,7 @@ fun ThemesScreen(
             listOf(0, 3, 5, 8).forEach { seconds ->
                 FilterChip(
                     selected = crossfadeSeconds == seconds,
-                    onClick = { onSetCrossfadeSeconds(seconds) },
+                    onClick = { context.hapticTick(); onSetCrossfadeSeconds(seconds) },
                     label = { Text(if (seconds == 0) "Off" else "${seconds}s", fontSize = 12.sp) },
                     modifier = Modifier.weight(1f),
                     colors = FilterChipDefaults.filterChipColors(
@@ -1004,7 +1007,7 @@ fun ThemesScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { onScanLocalStorage(context) },
+                        onClick = { context.hapticTick(); onScanLocalStorage(context) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("scan_storage_button"),
@@ -1017,7 +1020,7 @@ fun ThemesScreen(
                     }
 
                     OutlinedButton(
-                        onClick = { filePickerLauncher.launch(arrayOf("audio/*")) },
+                        onClick = { context.hapticTick(); filePickerLauncher.launch(arrayOf("audio/*")) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -1062,7 +1065,7 @@ fun ThemesScreen(
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 OutlinedButton(
-                    onClick = onOpenLastFm,
+                    onClick = { context.hapticTick(); onOpenLastFm() },
                     modifier = Modifier.padding(top = 10.dp)
                 ) { Text("Configurar Last.fm") }
 
@@ -1084,12 +1087,12 @@ fun ThemesScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(onClick = onBackup, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { context.hapticTick(); onBackup() }, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Exportar")
                     }
-                    Button(onClick = onRestore, modifier = Modifier.weight(1f)) {
+                    Button(onClick = { context.hapticTick(); onRestore() }, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Restaurar")
@@ -1110,10 +1113,11 @@ private fun SurfacePaletteOption(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .width(104.dp)
-            .clickable { onClick() },
+            .clickable { context.hapticTick(); onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
@@ -1166,10 +1170,11 @@ fun ThemeModeOptionCard(
     testTag: String = "",
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     Card(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .clickable { onClick() }
+            .clickable { context.hapticTick(); onClick() }
             .testTag(testTag),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(

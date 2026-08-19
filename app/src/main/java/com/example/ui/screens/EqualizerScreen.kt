@@ -61,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -68,10 +69,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.EqualizerPreset
 import com.example.data.model.EqualizerState
+import com.example.ui.components.EqualizerBandSkeleton
 import com.example.ui.components.EqualizerCurveGraph
 import com.example.ui.components.SavePresetDialog
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.VisualizerView
+import com.example.ui.components.hapticTick
 
 val BAND_LABELS = listOf("60 Hz", "230 Hz", "910 Hz", "3.6 kHz", "14 kHz")
 val BAND_NAMES = listOf("Sub-Grave", "Grave", "Médios", "Médio-Agudo", "Agudo")
@@ -79,6 +82,7 @@ val BAND_NAMES = listOf("Sub-Grave", "Grave", "Médios", "Médio-Agudo", "Agudo"
 @Composable
 fun EqualizerScreen(
     equalizerState: EqualizerState,
+    isLoading: Boolean = false,
     isPlaying: Boolean,
     visualizerAmplitudes: FloatArray,
     onToggleEnabled: (Boolean) -> Unit,
@@ -92,6 +96,7 @@ fun EqualizerScreen(
     onDeleteCustomPreset: (EqualizerPreset) -> Unit = {}
 ) {
     var showSaveDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -162,7 +167,7 @@ fun EqualizerScreen(
 
                 Switch(
                     checked = equalizerState.isEnabled,
-                    onCheckedChange = onToggleEnabled,
+                    onCheckedChange = { context.hapticTick(); onToggleEnabled(it) },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,
                         checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
@@ -286,7 +291,7 @@ fun EqualizerScreen(
             )
 
             TextButton(
-                onClick = { showSaveDialog = true },
+                onClick = { context.hapticTick(); showSaveDialog = true },
                 enabled = equalizerState.isEnabled,
                 modifier = Modifier.testTag("save_preset_button")
             ) {
@@ -315,7 +320,7 @@ fun EqualizerScreen(
 
                 FilterChip(
                     selected = isSelected,
-                    onClick = { onSelectPreset(preset) },
+                    onClick = { context.hapticTick(); onSelectPreset(preset) },
                     enabled = equalizerState.isEnabled,
                     label = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -336,7 +341,7 @@ fun EqualizerScreen(
                     trailingIcon = if (isCustom) {
                         {
                             IconButton(
-                                onClick = { onDeleteCustomPreset(preset) },
+                                onClick = { context.hapticTick(); onDeleteCustomPreset(preset) },
                                 modifier = Modifier.size(20.dp).testTag("delete_preset_${preset.id}")
                             ) {
                                 Icon(
@@ -374,6 +379,17 @@ fun EqualizerScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        if (isLoading) {
+            // Show skeleton loading while data loads
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                repeat(5) {
+                    EqualizerBandSkeleton()
+                }
+            }
+        } else {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -426,7 +442,7 @@ fun EqualizerScreen(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-                                            .clickable { onBandGainChange(index, 0) }
+                                            .clickable { context.hapticTick(); onBandGainChange(index, 0) }
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -445,11 +461,11 @@ fun EqualizerScreen(
                                 inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                             ),
                             modifier = Modifier.testTag("slider_band_$index")
-                        )
-                    }
+                        )                    }
                 }
             }
         }
+        } // end else
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -614,7 +630,7 @@ fun EqualizerScreen(
 
         // Reset Button
         OutlinedButton(
-            onClick = onReset,
+            onClick = { context.hapticTick(); onReset() },
             modifier = Modifier.fillMaxWidth().testTag("reset_equalizer_button"),
             shape = RoundedCornerShape(16.dp)
         ) {
