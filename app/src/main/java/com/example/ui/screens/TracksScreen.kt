@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,6 +67,7 @@ import com.example.data.model.Song
 import com.example.ui.components.SongCoverArt
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.formatTimeMs
+import com.example.ui.components.hapticTick
 import com.example.ui.viewmodel.SortOption
 
 private enum class TrackFilter(val label: String) {
@@ -353,11 +355,12 @@ fun TrackListItem(
     onDeleteSong: () -> Unit
 ) {
     var showTrackMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clickable { context.hapticTick(); onClick() }
             .testTag("track_item_${song.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(

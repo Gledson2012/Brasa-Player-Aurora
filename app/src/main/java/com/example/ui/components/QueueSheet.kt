@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -116,12 +117,14 @@ fun QueueSheet(
                         items = queue,
                         key = { _, song -> song.id }
                     ) { index, song ->
+                        val context = LocalContext.current
                         val isCurrent = song.id == currentSongId
                         ListItem(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(MaterialTheme.shapes.medium)
                                 .clickable(enabled = song.isAvailable) {
+                                    context.hapticTick()
                                     onPlaySong(song)
                                 },
                             leadingContent = {

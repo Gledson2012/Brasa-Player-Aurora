@@ -83,6 +83,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -142,6 +143,7 @@ fun FullPlayerSheet(
 ) {
     if (song == null) return
 
+    val context = LocalContext.current
     var isUserSeeking by remember { mutableStateOf(false) }
     var seekSliderPosition by remember { mutableFloatStateOf(0f) }
     var showMenu by remember { mutableStateOf(false) }
@@ -412,7 +414,7 @@ fun FullPlayerSheet(
                             )
                         }
                         .pointerInput(song.id) {
-                            detectTapGestures(onDoubleTap = { onPlayPauseClick() })
+                            detectTapGestures(onDoubleTap = { context.hapticHeavyClick(); onPlayPauseClick() })
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -668,7 +670,7 @@ fun FullPlayerSheet(
                             if (isShuffle) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
                             else Color.Transparent
                         )
-                        .clickable { onToggleShuffle() }
+                        .clickable { context.hapticTick(); onToggleShuffle() }
                         .testTag("player_shuffle_button"),
                     contentAlignment = Alignment.Center
                 ) {
@@ -723,7 +725,7 @@ fun FullPlayerSheet(
                                 )
                             )
                         )
-                        .clickable { onPlayPauseClick() }
+                        .clickable { context.hapticHeavyClick(); onPlayPauseClick() }
                         .testTag("full_player_play_pause_button"),
                     contentAlignment = Alignment.Center
                 ) {
@@ -760,7 +762,7 @@ fun FullPlayerSheet(
                             if (isRepeatActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
                             else Color.Transparent
                         )
-                        .clickable { onCycleRepeat() }
+                        .clickable { context.hapticTick(); onCycleRepeat() }
                         .testTag("player_repeat_button"),
                     contentAlignment = Alignment.Center
                 ) {

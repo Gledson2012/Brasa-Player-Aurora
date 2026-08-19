@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +72,7 @@ fun MiniPlayerBar(
     ) {
         if (song == null) return@AnimatedVisibility
 
+        val context = LocalContext.current
         val progress = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
 
         Card(
@@ -79,7 +81,7 @@ fun MiniPlayerBar(
                 .padding(horizontal = 12.dp, vertical = 6.dp)
                 .shadow(8.dp, RoundedCornerShape(18.dp))
                 .testTag("mini_player_bar")
-                .clickable { onBarClick() },
+                .clickable { context.hapticTick(); onBarClick() },
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.98f)
@@ -170,7 +172,7 @@ fun MiniPlayerBar(
 
                     // Favorite Button
                     IconButton(
-                        onClick = { onFavoriteClick(song) },
+                        onClick = { context.hapticTick(); onFavoriteClick(song) },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
@@ -183,7 +185,7 @@ fun MiniPlayerBar(
 
                     // Play/Pause Button
                     FilledIconButton(
-                        onClick = onPlayPauseClick,
+                        onClick = { context.hapticHeavyClick(); onPlayPauseClick() },
                         modifier = Modifier
                             .size(40.dp)
                             .testTag("mini_player_play_pause"),
@@ -203,7 +205,7 @@ fun MiniPlayerBar(
 
                     // Next Button
                     IconButton(
-                        onClick = onNextClick,
+                        onClick = { context.hapticTick(); onNextClick() },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
