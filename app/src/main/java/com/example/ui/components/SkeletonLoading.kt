@@ -1,6 +1,9 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -67,10 +70,17 @@ fun SkeletonLoading(
  */
 @Composable
 fun TrackItemSkeleton(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    animDelay: Int = 0
 ) {
-    Row(
+    AnimatedVisibility(
+        visible = true,
+        enter = fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = animDelay)) +
+                slideInVertically(animationSpec = tween(durationMillis = 400, delayMillis = animDelay)) { it / 4 },
         modifier = modifier
+    ) {
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -107,6 +117,7 @@ fun TrackItemSkeleton(
                 .clip(RoundedCornerShape(8.dp))
         )
     }
+    } // end AnimatedVisibility
 }
 
 /**
@@ -114,10 +125,17 @@ fun TrackItemSkeleton(
  */
 @Composable
 fun PlaylistItemSkeleton(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    animDelay: Int = 0
 ) {
-    Column(
+    AnimatedVisibility(
+        visible = true,
+        enter = fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = animDelay)) +
+                slideInVertically(animationSpec = tween(durationMillis = 400, delayMillis = animDelay)) { it / 4 },
         modifier = modifier
+    ) {
+    Column(
+        modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -144,6 +162,7 @@ fun PlaylistItemSkeleton(
                 .height(12.dp)
         )
     }
+    } // end AnimatedVisibility
 }
 
 /**
@@ -198,10 +217,17 @@ fun MiniPlayerSkeleton(
  */
 @Composable
 fun EqualizerBandSkeleton(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    animDelay: Int = 0
 ) {
-    Column(
+    AnimatedVisibility(
+        visible = true,
+        enter = fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = animDelay)) +
+                slideInVertically(animationSpec = tween(durationMillis = 400, delayMillis = animDelay)) { it / 4 },
         modifier = modifier
+    ) {
+    Column(
+        modifier = Modifier
             .width(60.dp)
             .height(180.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -229,6 +255,7 @@ fun EqualizerBandSkeleton(
                 .height(12.dp)
         )
     }
+    } // end AnimatedVisibility
 }
 
 /**

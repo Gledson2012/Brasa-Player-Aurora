@@ -297,8 +297,8 @@ fun TracksScreen(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(8) {
-                    TrackItemSkeleton()
+                items(8) { index ->
+                    TrackItemSkeleton(animDelay = index * 80)
                 }
             }
         } else if (visibleSongs.isEmpty()) {

@@ -327,8 +327,8 @@ fun PlaylistsScreen(
 
                 if (isLoading && playlistsWithSongs.isEmpty()) {
                     // Show skeleton loading while initial data is loading
-                    items(4) {
-                        PlaylistItemSkeleton()
+                    items(4) { index ->
+                        PlaylistItemSkeleton(animDelay = index * 100)
                     }
                 } else if (visiblePlaylists.isEmpty()) {
                     item {

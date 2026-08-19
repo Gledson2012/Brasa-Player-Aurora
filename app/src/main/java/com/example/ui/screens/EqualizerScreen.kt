@@ -385,8 +385,8 @@ fun EqualizerScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                repeat(5) {
-                    EqualizerBandSkeleton()
+                repeat(5) { index ->
+                    EqualizerBandSkeleton(animDelay = index * 100)
                 }
             }
         } else {
