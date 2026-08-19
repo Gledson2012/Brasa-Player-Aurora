@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Music Player</string>
+    <string name="app_name">Brasa Player Aurora</string>
     <string name="tab_tracks">Músicas</string>
     <string name="tab_playlists">Playlists</string>
     <string name="tab_equalizer">Equalizador</string>
@@ -16,5 +16,5 @@
     <string name="scan_storage">Escanear Áudio Local</string>
     <string name="playback_notification_channel_name">Reprodução de Música</string>
     <string name="playback_notification_channel_desc">Controles de reprodução de áudio e notificações de mídia em segundo plano</string>
-    <string name="playback_notification_idle_text">Music Player preparado para reprodução</string>
+    <string name="playback_notification_idle_text">Brasa Player Aurora preparado para reprodução</string>
 </resources>

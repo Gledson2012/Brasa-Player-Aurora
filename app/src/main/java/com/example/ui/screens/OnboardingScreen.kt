@@ -65,7 +65,7 @@ private data class OnboardingPage(
 private val onboardingPages = listOf(
     OnboardingPage(
         icon = Icons.Default.Headphones,
-        title = "Bem-vindo ao Brasa Player",
+        title = "Bem-vindo ao Brasa Player Aurora",
         description = "Seu player de música offline com áudio de alta qualidade, equalização profissional e personalização total.",
         gradient = listOf(Color(0xFF6C3CE1), Color(0xFF00F0FF))
     ),

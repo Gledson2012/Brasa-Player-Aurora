@@ -11,6 +11,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import com.example.data.model.AppThemeType
 import com.example.data.model.CustomThemeConfig
@@ -19,25 +20,7 @@ import com.example.data.model.ThemeMode
 
 fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false): ColorScheme {
     if (forceLight || !theme.isDarkPreset) {
-        // Light Theme representation
-        return lightColorScheme(
-            primary = theme.primaryColor,
-            onPrimary = Color.White,
-            primaryContainer = Color(0xFFE0E7FF),
-            onPrimaryContainer = Color(0xFF1E1B4B),
-            secondary = theme.secondaryColor,
-            onSecondary = Color.White,
-            secondaryContainer = Color(0xFFCFFAFE),
-            onSecondaryContainer = Color(0xFF164E63),
-            tertiary = Color(0xFF0284C7),
-            background = StudioLightBackground,
-            onBackground = StudioLightTextPrimary,
-            surface = StudioLightSurface,
-            onSurface = StudioLightTextPrimary,
-            surfaceVariant = StudioLightSurfaceVariant,
-            onSurfaceVariant = StudioLightTextSecondary,
-            outline = Color(0xFFCBD5E1)
-        )
+        return buildLightPresetScheme(theme)
     }
 
     return when (theme) {
@@ -50,7 +33,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.Black,
             secondaryContainer = Color(0xFF00444D),
             onSecondaryContainer = Color(0xFFB4F9FF),
-            tertiary = NeonPink,
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFF1F0F5),
             surface = DarkOledSurface,
@@ -68,7 +51,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.Black,
             secondaryContainer = Color(0xFF00434C),
             onSecondaryContainer = Color(0xFFB3F7FF),
-            tertiary = Color(0xFFFFD600),
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFF7F3FF),
             surface = CyberSurface,
@@ -86,7 +69,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.Black,
             secondaryContainer = Color(0xFF523D00),
             onSecondaryContainer = Color(0xFFFFEFA6),
-            tertiary = Color(0xFFFF5964),
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFFDF0ED),
             surface = SunsetSurface,
@@ -104,7 +87,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.Black,
             secondaryContainer = Color(0xFF004D3F),
             onSecondaryContainer = Color(0xFF9CF8E1),
-            tertiary = Color(0xFF76FF03),
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFEDF8F4),
             surface = EmeraldSurface,
@@ -122,7 +105,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.Black,
             secondaryContainer = Color(0xFF003859),
             onSecondaryContainer = Color(0xFFBCE7FF),
-            tertiary = Color(0xFF7C4DFF),
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFEEF3FC),
             surface = SapphireSurface,
@@ -140,7 +123,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.White,
             secondaryContainer = Color(0xFF5D0000),
             onSecondaryContainer = Color(0xFFFFDAD6),
-            tertiary = Color(0xFF00E5FF),
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFFBEFFF),
             surface = RetroSurface,
@@ -158,7 +141,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.White,
             secondaryContainer = Color(0xFF380D61),
             onSecondaryContainer = Color(0xFFE8C8FF),
-            tertiary = NeonCyan,
+            tertiary = theme.tertiaryColor,
             background = PitchBlackBackground,
             onBackground = Color(0xFFF0F0F0),
             surface = PitchBlackSurface,
@@ -176,7 +159,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.White,
             secondaryContainer = Color(0xFF3D0034),
             onSecondaryContainer = Color(0xFFFFD7F3),
-            tertiary = SunsetGold,
+            tertiary = theme.tertiaryColor,
             background = RoseGoldBackground,
             onBackground = Color(0xFFFDF0F6),
             surface = RoseGoldSurface,
@@ -194,7 +177,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.White,
             secondaryContainer = Color(0xFF1E2966),
             onSecondaryContainer = Color(0xFFDFE2FF),
-            tertiary = NeonCyan,
+            tertiary = theme.tertiaryColor,
             background = NordicFrostBackground,
             onBackground = Color(0xFFEDF2F7),
             surface = NordicFrostSurface,
@@ -212,7 +195,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color(0xFF263500),
             secondaryContainer = Color(0xFF354F00),
             onSecondaryContainer = Color(0xFFD2FF8B),
-            tertiary = Color(0xFF7CFFCB),
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFE6F5F1),
             surface = Color(0xFF10221F),
@@ -230,7 +213,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color(0xFF3D2E00),
             secondaryContainer = Color(0xFF5A4300),
             onSecondaryContainer = Color(0xFFFFE08A),
-            tertiary = Color(0xFFFF8A65),
+            tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
             onBackground = Color(0xFFFFF0F1),
             surface = Color(0xFF2A1217),
@@ -239,7 +222,43 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSurfaceVariant = Color(0xFFE4BBC2),
             outline = Color(0xFF74404C)
         )
-        AppThemeType.MINIMALIST_LIGHT, AppThemeType.PAPER_CREAM -> lightColorScheme(
+        AppThemeType.OBSIDIAN_GOLD -> darkColorScheme(
+            primary = theme.primaryColor,
+            onPrimary = Color(0xFF2B1A00),
+            primaryContainer = Color(0xFF5A3A00),
+            onPrimaryContainer = Color(0xFFFFE8B3),
+            secondary = theme.secondaryColor,
+            onSecondary = Color(0xFF2B1600),
+            secondaryContainer = Color(0xFF4D2800),
+            onSecondaryContainer = Color(0xFFFFDC9A),
+            tertiary = theme.tertiaryColor,
+            background = theme.surfaceDark,
+            onBackground = Color(0xFFF6F2EA),
+            surface = Color(0xFF18191F),
+            onSurface = Color(0xFFF6F2EA),
+            surfaceVariant = Color(0xFF282A33),
+            onSurfaceVariant = Color(0xFFD0C8B7),
+            outline = Color(0xFF5B5140)
+        )
+        AppThemeType.OCEANIC_TEAL -> darkColorScheme(
+            primary = theme.primaryColor,
+            onPrimary = Color(0xFF002A2E),
+            primaryContainer = Color(0xFF004B52),
+            onPrimaryContainer = Color(0xFFA5F3FC),
+            secondary = theme.secondaryColor,
+            onSecondary = Color(0xFF002A27),
+            secondaryContainer = Color(0xFF064E4A),
+            onSecondaryContainer = Color(0xFF99F6E4),
+            tertiary = theme.tertiaryColor,
+            background = theme.surfaceDark,
+            onBackground = Color(0xFFE4F7F7),
+            surface = Color(0xFF0C2226),
+            onSurface = Color(0xFFE4F7F7),
+            surfaceVariant = Color(0xFF12343A),
+            onSurfaceVariant = Color(0xFFB5D8D9),
+            outline = Color(0xFF2B6269)
+        )
+        AppThemeType.MINIMALIST_LIGHT, AppThemeType.PAPER_CREAM, AppThemeType.LAVENDER_STUDIO -> lightColorScheme(
             primary = theme.primaryColor,
             onPrimary = Color.White,
             primaryContainer = Color(0xFFE0E7FF),
@@ -248,7 +267,7 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             onSecondary = Color.White,
             secondaryContainer = Color(0xFFCFFAFE),
             onSecondaryContainer = Color(0xFF164E63),
-            tertiary = Color(0xFF0284C7),
+            tertiary = theme.tertiaryColor,
             background = StudioLightBackground,
             onBackground = StudioLightTextPrimary,
             surface = StudioLightSurface,
@@ -258,6 +277,71 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
             outline = Color(0xFFCBD5E1)
         )
     }
+}
+
+private fun buildLightPresetScheme(theme: AppThemeType): ColorScheme {
+    return when (theme) {
+        AppThemeType.PAPER_CREAM -> lightColorScheme(
+            primary = theme.primaryColor,
+            onPrimary = readableContentColor(theme.primaryColor),
+            primaryContainer = Color(0xFFFEF3C7),
+            onPrimaryContainer = Color(0xFF451A03),
+            secondary = theme.secondaryColor,
+            onSecondary = readableContentColor(theme.secondaryColor),
+            secondaryContainer = Color(0xFFCCFBF1),
+            onSecondaryContainer = Color(0xFF134E4A),
+            tertiary = theme.tertiaryColor,
+            background = WarmLightBackground,
+            onBackground = WarmLightTextPrimary,
+            surface = WarmLightSurface,
+            onSurface = WarmLightTextPrimary,
+            surfaceVariant = WarmLightSurfaceVariant,
+            onSurfaceVariant = WarmLightTextSecondary,
+            outline = Color(0xFFD6D3D1)
+        )
+
+        AppThemeType.LAVENDER_STUDIO -> lightColorScheme(
+            primary = theme.primaryColor,
+            onPrimary = readableContentColor(theme.primaryColor),
+            primaryContainer = Color(0xFFEDE9FE),
+            onPrimaryContainer = Color(0xFF2E1065),
+            secondary = theme.secondaryColor,
+            onSecondary = readableContentColor(theme.secondaryColor),
+            secondaryContainer = Color(0xFFDBEAFE),
+            onSecondaryContainer = Color(0xFF172554),
+            tertiary = theme.tertiaryColor,
+            background = Color(0xFFF8F7FF),
+            onBackground = Color(0xFF17152A),
+            surface = Color.White,
+            onSurface = Color(0xFF17152A),
+            surfaceVariant = Color(0xFFF0EEFF),
+            onSurfaceVariant = Color(0xFF68647A),
+            outline = Color(0xFFD8D4FE)
+        )
+
+        else -> lightColorScheme(
+            primary = theme.primaryColor,
+            onPrimary = readableContentColor(theme.primaryColor),
+            primaryContainer = Color(0xFFE0E7FF),
+            onPrimaryContainer = Color(0xFF1E1B4B),
+            secondary = theme.secondaryColor,
+            onSecondary = readableContentColor(theme.secondaryColor),
+            secondaryContainer = Color(0xFFCFFAFE),
+            onSecondaryContainer = Color(0xFF164E63),
+            tertiary = theme.tertiaryColor,
+            background = StudioLightBackground,
+            onBackground = StudioLightTextPrimary,
+            surface = StudioLightSurface,
+            onSurface = StudioLightTextPrimary,
+            surfaceVariant = StudioLightSurfaceVariant,
+            onSurfaceVariant = StudioLightTextSecondary,
+            outline = Color(0xFFCBD5E1)
+        )
+    }
+}
+
+private fun readableContentColor(background: Color): Color {
+    return if (background.luminance() > 0.42f) Color(0xFF0F172A) else Color.White
 }
 
 fun buildColorSchemeForCustom(custom: CustomThemeConfig): ColorScheme {

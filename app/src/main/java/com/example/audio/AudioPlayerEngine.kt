@@ -139,7 +139,9 @@ class AudioPlayerEngine(
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
-                    Player.STATE_ENDED -> if (!isUsingSynth) handleTrackCompletion()
+                    Player.STATE_ENDED -> if (!isUsingSynth) {
+                        handleTrackCompletion(fromNaturalEnd = true)
+                    }
                     Player.STATE_READY -> {
                         val dur = player.duration
                         if (dur > 0) {
@@ -502,7 +504,7 @@ class AudioPlayerEngine(
                 maybeStartCrossfade(current, total)
             },
             onCompletion = {
-                handleTrackCompletion()
+                handleTrackCompletion(fromNaturalEnd = true)
             }
         )
 
@@ -643,7 +645,7 @@ class AudioPlayerEngine(
                         pushWaveformSample(synthGenerator.visualizerAmplitudes.average().toFloat())
                         maybeStartCrossfade(pos, dur)
                     },
-                    onCompletion = { handleTrackCompletion() }
+                    onCompletion = { handleTrackCompletion(fromNaturalEnd = true) }
                 )
             } else {
                 // A queue restored with autoPlay=false has not initialized the
@@ -715,8 +717,16 @@ class AudioPlayerEngine(
         playSong(q[prevIndex])
     }
 
-    private fun handleTrackCompletion() {
-        if (isCrossfadeTransitioning) return
+    private fun handleTrackCompletion(fromNaturalEnd: Boolean = false) {
+        // A real end event must win over the crossfade coroutine. ExoPlayer can
+        // report isPlaying=false before STATE_ENDED, which used to make both
+        // paths return without ever advancing the queue.
+        if (isCrossfadeTransitioning && !fromNaturalEnd) return
+        if (fromNaturalEnd) {
+            crossfadeTransitionJob?.cancel()
+            crossfadeTransitionJob = null
+            isCrossfadeTransitioning = false
+        }
         if (_sleepTimerEndAtTrackEnd.value) {
             _sleepTimerEndAtTrackEnd.value = false
             pause()

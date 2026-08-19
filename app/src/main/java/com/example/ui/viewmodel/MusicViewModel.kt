@@ -33,6 +33,7 @@ import com.example.data.model.VisualizerStyle
 import com.example.data.repository.MusicRepository
 import com.example.service.MusicPlaybackService
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +47,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class SortOption(val title: String) {
     TITLE("Título (A-Z)"),
@@ -56,13 +58,12 @@ enum class SortOption(val title: String) {
 
 class MusicViewModel(
     application: Application,
-    private val repository: MusicRepository
+    private val repository: MusicRepository,
+    private val themeDataStore: ThemePreferencesDataStore,
+    private val lastFmDataStore: LastFmPreferencesDataStore,
+    private val backupManager: BackupManager,
+    private val playerEngine: AudioPlayerEngine
 ) : AndroidViewModel(application) {
-
-    private val playerEngine = AudioPlayerEngine.getOrCreateInstance(application.applicationContext)
-    private val themeDataStore = ThemePreferencesDataStore(application.applicationContext)
-    private val lastFmDataStore = LastFmPreferencesDataStore(application.applicationContext)
-    private val backupManager = BackupManager(repository, themeDataStore)
 
     // Player engine state exposures
     val isPlaying: StateFlow<Boolean> = playerEngine.isPlaying
@@ -99,7 +100,9 @@ class MusicViewModel(
             // Re-scan local storage to pick up any new files
             try {
                 val context = getApplication<Application>().applicationContext
-                repository.scanDeviceAudio(context)
+                withContext(Dispatchers.IO) {
+                    repository.scanDeviceAudio(context)
+                }
             } catch (_: Exception) { }
             delay(800) // minimum visual feedback time
             _isRefreshing.value = false
@@ -203,6 +206,244 @@ class MusicViewModel(
     private val _isLyricsLoading = MutableStateFlow(false)
     val isLyricsLoading: StateFlow<Boolean> = _isLyricsLoading.asStateFlow()
 
+    private data class PlaybackCore(
+        val currentSong: Song?,
+        val isPlaying: Boolean,
+        val currentPositionMs: Long,
+        val durationMs: Long,
+        val queue: List<Song>
+    )
+
+    private data class PlaybackOptions(
+        val repeatMode: RepeatMode,
+        val isShuffle: Boolean,
+        val playbackSpeed: Float,
+        val crossfadeSeconds: Int
+    )
+
+    private data class PlaybackVisuals(
+        val visualizerAmplitudes: FloatArray,
+        val waveformSamples: List<Float>,
+        val sleepTimerRemainingSeconds: Int?,
+        val sleepTimerEndAtTrackEnd: Boolean,
+        val playbackError: String?
+    )
+
+    private data class LibraryState(
+        val allSongs: List<Song>,
+        val displayedSongs: List<Song>,
+        val favoriteSongs: List<Song>,
+        val recentlyPlayed: List<Song>,
+        val mostPlayed: List<Song>,
+        val allPlaylistsWithSongs: List<PlaylistWithSongs>
+    )
+
+    private data class NavigationState(
+        val selectedTab: Int,
+        val isFullPlayerOpen: Boolean,
+        val activePlaylistDetail: PlaylistWithSongs?
+    )
+
+    private data class AppStatus(
+        val onboardingCompleted: Boolean,
+        val isLoading: Boolean,
+        val isRefreshing: Boolean,
+        val searchQuery: String,
+        val sortOption: SortOption
+    )
+
+    private data class Messages(
+        val scanStatusMessage: String?,
+        val lastFmMessage: String?,
+        val lastFmAuthUrl: String?
+    )
+
+    private data class DialogState(
+        val showCreatePlaylistDialog: Boolean,
+        val showAddToPlaylistDialog: Song?,
+        val showSleepTimerDialog: Boolean,
+        val showSpeedDialog: Boolean,
+        val showLastFmDialog: Boolean,
+        val showLyricsEditor: Boolean
+    )
+
+    private data class LyricsState(
+        val currentLyrics: TrackLyrics?,
+        val isLyricsLoading: Boolean,
+        val isLyricsViewActive: Boolean
+    )
+
+    private val playbackCore = combine(
+        currentSong,
+        isPlaying,
+        currentPositionMs,
+        durationMs,
+        queue
+    ) { song, playing, position, duration, currentQueue ->
+        PlaybackCore(song, playing, position, duration, currentQueue)
+    }
+
+    private val playbackOptions = combine(
+        repeatMode,
+        isShuffle,
+        playbackSpeed,
+        crossfadeSeconds
+    ) { repeat, shuffle, speed, crossfade ->
+        PlaybackOptions(repeat, shuffle, speed, crossfade)
+    }
+
+    private val playbackVisuals = combine(
+        visualizerAmplitudes,
+        waveformSamples,
+        sleepTimerRemainingSeconds,
+        sleepTimerEndAtTrackEnd,
+        playbackError
+    ) { amplitudes, waveform, timer, endAtTrackEnd, error ->
+        PlaybackVisuals(amplitudes, waveform, timer, endAtTrackEnd, error)
+    }
+
+    private val playbackState = combine(
+        playbackCore,
+        playbackOptions,
+        playbackVisuals
+    ) { core, options, visuals ->
+        Triple(core, options, visuals)
+    }
+
+    private val libraryState = combine(
+        allSongs,
+        displayedSongs,
+        favoriteSongs,
+        recentlyPlayed,
+        mostPlayed
+    ) { songs, displayed, favorites, recent, popular ->
+        LibraryState(songs, displayed, favorites, recent, popular, emptyList())
+    }.let { songsState ->
+        combine(songsState, allPlaylistsWithSongs) { songs, playlists ->
+            songs.copy(allPlaylistsWithSongs = playlists)
+        }
+    }
+
+    private val preferencesState = combine(
+        equalizerState,
+        themeSettings,
+        lastFmSettings
+    ) { equalizer, theme, lastFm ->
+        Triple(equalizer, theme, lastFm)
+    }
+
+    private val navigationState = combine(
+        selectedTab,
+        isFullPlayerOpen,
+        activePlaylistDetail
+    ) { tab, fullPlayer, playlist ->
+        NavigationState(tab, fullPlayer, playlist)
+    }
+
+    private val appStatus = combine(
+        onboardingCompleted,
+        isLoading,
+        isRefreshing,
+        searchQuery,
+        sortOption
+    ) { onboarding, loading, refreshing, query, sort ->
+        AppStatus(onboarding, loading, refreshing, query, sort)
+    }
+
+    private val messages = combine(
+        scanStatusMessage,
+        lastFmMessage,
+        lastFmAuthUrl
+    ) { scan, lastFm, authUrl ->
+        Messages(scan, lastFm, authUrl)
+    }
+
+    private val dialogCore = combine(
+        showCreatePlaylistDialog,
+        showAddToPlaylistDialog,
+        showSleepTimerDialog,
+        showSpeedDialog,
+        showLastFmDialog
+    ) { create, add, sleep, speed, lastFm ->
+        DialogState(create, add, sleep, speed, lastFm, false)
+    }
+
+    private val dialogs = combine(dialogCore, showLyricsEditor) { state, lyrics ->
+        state.copy(showLyricsEditor = lyrics)
+    }
+
+    private val lyricsState = combine(
+        currentLyrics,
+        isLyricsLoading,
+        isLyricsViewActive
+    ) { lyrics, loading, viewActive ->
+        LyricsState(lyrics, loading, viewActive)
+    }
+
+    private val uiStateBase = combine(
+        playbackState,
+        libraryState,
+        preferencesState,
+        navigationState,
+        appStatus
+    ) { playback, library, preferences, navigation, status ->
+        MusicUiState(
+            currentSong = playback.first.currentSong,
+            isPlaying = playback.first.isPlaying,
+            currentPositionMs = playback.first.currentPositionMs,
+            durationMs = playback.first.durationMs,
+            queue = playback.first.queue,
+            repeatMode = playback.second.repeatMode,
+            isShuffle = playback.second.isShuffle,
+            playbackSpeed = playback.second.playbackSpeed,
+            crossfadeSeconds = playback.second.crossfadeSeconds,
+            visualizerAmplitudes = playback.third.visualizerAmplitudes,
+            waveformSamples = playback.third.waveformSamples,
+            sleepTimerRemainingSeconds = playback.third.sleepTimerRemainingSeconds,
+            sleepTimerEndAtTrackEnd = playback.third.sleepTimerEndAtTrackEnd,
+            playbackError = playback.third.playbackError,
+            allSongs = library.allSongs,
+            displayedSongs = library.displayedSongs,
+            favoriteSongs = library.favoriteSongs,
+            recentlyPlayed = library.recentlyPlayed,
+            mostPlayed = library.mostPlayed,
+            allPlaylistsWithSongs = library.allPlaylistsWithSongs,
+            equalizerState = preferences.first,
+            themeSettings = preferences.second,
+            lastFmSettings = preferences.third,
+            selectedTab = navigation.selectedTab,
+            isFullPlayerOpen = navigation.isFullPlayerOpen,
+            activePlaylistDetail = navigation.activePlaylistDetail,
+            onboardingCompleted = status.onboardingCompleted,
+            isLoading = status.isLoading,
+            isRefreshing = status.isRefreshing,
+            searchQuery = status.searchQuery,
+            sortOption = status.sortOption
+        )
+    }
+
+    val uiState: StateFlow<MusicUiState> = combine(
+        uiStateBase,
+        messages,
+        dialogs,
+        lyricsState
+    ) { state, appMessages, dialogState, lyrics ->
+        state.copy(
+            scanStatusMessage = appMessages.scanStatusMessage,
+            lastFmMessage = appMessages.lastFmMessage,
+            lastFmAuthUrl = appMessages.lastFmAuthUrl,
+            currentLyrics = lyrics.currentLyrics,
+            isLyricsLoading = lyrics.isLyricsLoading,
+            isLyricsViewActive = lyrics.isLyricsViewActive,
+            showCreatePlaylistDialog = dialogState.showCreatePlaylistDialog,
+            showAddToPlaylistDialog = dialogState.showAddToPlaylistDialog,
+            showSleepTimerDialog = dialogState.showSleepTimerDialog,
+            showSpeedDialog = dialogState.showSpeedDialog,
+            showLastFmDialog = dialogState.showLastFmDialog,
+            showLyricsEditor = dialogState.showLyricsEditor
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, MusicUiState())
+
     private var lastFmScrobbledSongId: Long? = null
 
     // Coalesced playback-position persistence: avoids racing writes and redundant DB hits.
@@ -221,7 +462,7 @@ class MusicViewModel(
 
         playerEngine.setOnSongChangedListener { song ->
             lastFmScrobbledSongId = null
-            viewModelScope.launch {
+            viewModelScope.launch(Dispatchers.IO) {
                 repository.recordSongPlayed(song.id)
                 repository.updateLastPlayedState(song.id, currentPositionMs.value)
                 val settings = lastFmSettings.value
@@ -299,7 +540,9 @@ class MusicViewModel(
                     _isLoading.value = false
                 }
                 if (songs.isNotEmpty() && currentSong.value == null) {
-                    val saved = repository.getUserSettingsOnce()
+                    val saved = withContext(Dispatchers.IO) {
+                        repository.getUserSettingsOnce()
+                    }
                     val savedIndex = saved.lastPlayedSongId
                         ?.let { id -> songs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
                         ?: 0
@@ -365,7 +608,7 @@ class MusicViewModel(
     }
 
     fun selectTab(index: Int) {
-        _selectedTab.value = index.coerceIn(0, 3)
+        _selectedTab.value = index.coerceIn(0, 4)
     }
 
     fun openFullPlayer() {
@@ -1040,7 +1283,9 @@ class MusicViewModel(
         viewModelScope.launch {
             setScanStatusMessage("Criando backup...")
             try {
-                backupManager.export(context, uri)
+                withContext(Dispatchers.IO) {
+                    backupManager.export(context, uri)
+                }
                 setScanStatusMessage("Backup salvo com sucesso.")
             } catch (e: Exception) {
                 setScanStatusMessage("Falha no backup: ${e.message ?: "arquivo inválido"}")
@@ -1054,7 +1299,9 @@ class MusicViewModel(
         viewModelScope.launch {
             setScanStatusMessage("Restaurando backup...")
             try {
-                val songs = backupManager.restore(context, uri)
+                val songs = withContext(Dispatchers.IO) {
+                    backupManager.restore(context, uri)
+                }
                 if (songs.isNotEmpty()) playerEngine.setQueue(songs, startIndex = 0, autoPlay = false)
                 setScanStatusMessage("Backup restaurado: ${songs.size} música(s).")
             } catch (e: Exception) {
@@ -1085,6 +1332,30 @@ class MusicViewModel(
         val settings: LastFmSettings
     )
 
+    class Factory(
+        private val application: Application,
+        private val repository: MusicRepository,
+        private val themeDataStore: ThemePreferencesDataStore,
+        private val lastFmDataStore: LastFmPreferencesDataStore,
+        private val backupManager: BackupManager,
+        private val playerEngine: AudioPlayerEngine
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (!modelClass.isAssignableFrom(MusicViewModel::class.java)) {
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
+            return MusicViewModel(
+                application = application,
+                repository = repository,
+                themeDataStore = themeDataStore,
+                lastFmDataStore = lastFmDataStore,
+                backupManager = backupManager,
+                playerEngine = playerEngine
+            ) as T
+        }
+    }
+
     override fun onCleared() {
         playerEngine.setOnSongChangedListener(null)
         playerEngine.setOnFavoriteToggleListener(null)
@@ -1093,16 +1364,4 @@ class MusicViewModel(
         super.onCleared()
     }
 
-    class Factory(
-        private val application: Application,
-        private val repository: MusicRepository
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(MusicViewModel::class.java)) {
-                return MusicViewModel(application, repository) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class")
-        }
-    }
 }

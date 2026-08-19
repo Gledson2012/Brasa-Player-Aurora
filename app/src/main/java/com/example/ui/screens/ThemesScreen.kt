@@ -794,30 +794,7 @@ fun ThemesScreen(
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Color swatches
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy((-8).dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(themeType.surfaceDark)
-                                .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(themeType.primaryColor)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(themeType.secondaryColor)
-                        )
-                    }
+                    PresetThemePreview(themeType)
 
                     Spacer(modifier = Modifier.width(14.dp))
 
@@ -910,9 +887,11 @@ fun ThemesScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            maxItemsInEachRow = 2,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             VisualizerStyle.values().forEach { style ->
                 val isSelected = themeConfig.visualizerStyle == style
@@ -931,7 +910,7 @@ fun ThemesScreen(
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth(0.48f)
                 )
             }
         }
@@ -946,9 +925,11 @@ fun ThemesScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            maxItemsInEachRow = 2,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AlbumArtStyle.values().forEach { style ->
                 val isSelected = themeConfig.albumArtStyle == style
@@ -967,7 +948,7 @@ fun ThemesScreen(
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth(0.48f)
                 )
             }
         }
@@ -1102,6 +1083,65 @@ fun ThemesScreen(
         }
 
         Spacer(modifier = Modifier.height(90.dp))
+    }
+}
+
+@Composable
+private fun PresetThemePreview(theme: AppThemeType) {
+    Column(
+        modifier = Modifier.width(84.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            theme.surfaceDark,
+                            theme.primaryColor,
+                            theme.secondaryColor
+                        )
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.24f))
+                        )
+                    )
+            )
+            Icon(
+                imageVector = Icons.Default.GraphicEq,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(26.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(theme.tertiaryColor)
+                    .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (theme.isDarkPreset) "DARK • AUDIO" else "LIGHT • AUDIO",
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
     }
 }
 

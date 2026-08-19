@@ -191,7 +191,7 @@ class BackupManager(
         currentPresetId = json.optString("currentPresetId", "flat"),
         band0 = json.optInt("band0"), band1 = json.optInt("band1"), band2 = json.optInt("band2"),
         band3 = json.optInt("band3"), band4 = json.optInt("band4"),
-        bassBoost = json.optInt("bassBoost", 30), virtualizer = json.optInt("virtualizer", 20),
+        bassBoost = json.optInt("bassBoost", 0), virtualizer = json.optInt("virtualizer", 0),
         balance = json.optDouble("balance", 0.0).toFloat(),
         playbackSpeed = json.optDouble("playbackSpeed", 1.0).toFloat(),
         crossfadeSeconds = json.optInt("crossfadeSeconds", 0),

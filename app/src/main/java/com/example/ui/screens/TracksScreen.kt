@@ -49,6 +49,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,11 +105,25 @@ fun TracksScreen(
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(TrackFilter.ALL) }
-    val visibleSongs = when (selectedFilter) {
-        TrackFilter.ALL -> songs
-        TrackFilter.FAVORITES -> songs.filter(Song::isFavorite)
-        TrackFilter.AVAILABLE -> songs.filter(Song::isAvailable)
-        TrackFilter.UNAVAILABLE -> songs.filterNot(Song::isAvailable)
+    val visibleSongs by remember(songs, selectedFilter) {
+        derivedStateOf {
+            when (selectedFilter) {
+                TrackFilter.ALL -> songs
+                TrackFilter.FAVORITES -> songs.filter(Song::isFavorite)
+                TrackFilter.AVAILABLE -> songs.filter(Song::isAvailable)
+                TrackFilter.UNAVAILABLE -> songs.filterNot(Song::isAvailable)
+            }
+        }
+    }
+    val songCounts by remember(songs) {
+        derivedStateOf {
+            mapOf(
+                TrackFilter.ALL to songs.size,
+                TrackFilter.FAVORITES to songs.count(Song::isFavorite),
+                TrackFilter.AVAILABLE to songs.count(Song::isAvailable),
+                TrackFilter.UNAVAILABLE to songs.count { !it.isAvailable }
+            )
+        }
     }
 
     Column(
@@ -183,12 +198,7 @@ fun TracksScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(TrackFilter.values().toList()) { filter ->
-                val count = when (filter) {
-                    TrackFilter.ALL -> songs.size
-                    TrackFilter.FAVORITES -> songs.count(Song::isFavorite)
-                    TrackFilter.AVAILABLE -> songs.count(Song::isAvailable)
-                    TrackFilter.UNAVAILABLE -> songs.count { !it.isAvailable }
-                }
+                val count = songCounts.getValue(filter)
                 FilterChip(
                     selected = selectedFilter == filter,
                     onClick = { selectedFilter = filter },

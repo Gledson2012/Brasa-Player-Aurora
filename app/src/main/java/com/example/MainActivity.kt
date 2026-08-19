@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -58,10 +59,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.data.db.AppDatabase
 import com.example.data.lyrics.LyricsManager
 import com.example.data.model.Song
-import com.example.data.repository.MusicRepository
+import com.example.di.ServiceLocator
 import com.example.ui.components.AddToPlaylistDialog
 import com.example.ui.components.CreatePlaylistDialog
 import com.example.ui.components.EditSongDialog
@@ -73,25 +73,19 @@ import com.example.ui.components.QueueSheet
 import com.example.ui.components.SleepTimerDialog
 import com.example.ui.components.SpeedDialog
 import com.example.ui.screens.EqualizerScreen
+import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PlaylistsScreen
 import com.example.ui.screens.ThemesScreen
 import com.example.ui.screens.TracksScreen
 import com.example.ui.theme.MusicPlayerTheme
 import com.example.ui.viewmodel.MusicViewModel
+import com.example.ui.viewmodel.MusicUiState
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MusicViewModel by viewModels {
-        val database = AppDatabase.getInstance(applicationContext)
-        val repository = MusicRepository(
-            database = database,
-            songDao = database.songDao(),
-            playlistDao = database.playlistDao(),
-            userSettingsDao = database.userSettingsDao(),
-            lyricsDao = database.lyricsDao()
-        )
-        MusicViewModel.Factory(application, repository)
+        ServiceLocator.get(applicationContext).musicViewModelFactory(application)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,18 +93,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val themeSettings by viewModel.themeSettings.collectAsStateWithLifecycle()
-
-            MusicPlayerTheme(themeConfig = themeSettings) {
-                MainAppContent(viewModel = viewModel)
-            }
+            MusicPlayerRoot(viewModel = viewModel)
         }
+    }
+}
+
+@Composable
+private fun MusicPlayerRoot(viewModel: MusicViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    MusicPlayerTheme(themeConfig = uiState.themeSettings) {
+        MainAppContent(viewModel = viewModel, uiState = uiState)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppContent(viewModel: MusicViewModel) {
+fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     val context = LocalContext.current
     var showRestoreConfirmation by remember { mutableStateOf(false) }
     var editingSong by remember { mutableStateOf<Song?>(null) }
@@ -137,43 +135,40 @@ fun MainAppContent(viewModel: MusicViewModel) {
     val requestNotificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
-    val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
-    val isFullPlayerOpen by viewModel.isFullPlayerOpen.collectAsStateWithLifecycle()
-
-    val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
-    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
-    val currentPositionMs by viewModel.currentPositionMs.collectAsStateWithLifecycle()
-    val durationMs by viewModel.durationMs.collectAsStateWithLifecycle()
-    val queue by viewModel.queue.collectAsStateWithLifecycle()
-    val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
-    val isShuffle by viewModel.isShuffle.collectAsStateWithLifecycle()
-    val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
-    val crossfadeSeconds by viewModel.crossfadeSeconds.collectAsStateWithLifecycle()
-    val visualizerAmplitudes by viewModel.visualizerAmplitudes.collectAsStateWithLifecycle()
-    val waveformSamples by viewModel.waveformSamples.collectAsStateWithLifecycle()
-
-    val onboardingCompleted by viewModel.onboardingCompleted.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
-    val allSongs by viewModel.allSongs.collectAsStateWithLifecycle()
-    val displayedSongs by viewModel.displayedSongs.collectAsStateWithLifecycle()
-    val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
-    val recentlyPlayed by viewModel.recentlyPlayed.collectAsStateWithLifecycle()
-    val mostPlayed by viewModel.mostPlayed.collectAsStateWithLifecycle()
-    val allPlaylistsWithSongs by viewModel.allPlaylistsWithSongs.collectAsStateWithLifecycle()
-    val activePlaylistDetail by viewModel.activePlaylistDetail.collectAsStateWithLifecycle()
-
-    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
-    val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
-    val equalizerState by viewModel.equalizerState.collectAsStateWithLifecycle()
-    val themeSettings by viewModel.themeSettings.collectAsStateWithLifecycle()
-    val sleepTimerRemainingSeconds by viewModel.sleepTimerRemainingSeconds.collectAsStateWithLifecycle()
-    val sleepTimerEndAtTrackEnd by viewModel.sleepTimerEndAtTrackEnd.collectAsStateWithLifecycle()
-    val scanStatusMessage by viewModel.scanStatusMessage.collectAsStateWithLifecycle()
-    val lastFmSettings by viewModel.lastFmSettings.collectAsStateWithLifecycle()
-    val lastFmMessage by viewModel.lastFmMessage.collectAsStateWithLifecycle()
-    val lastFmAuthUrl by viewModel.lastFmAuthUrl.collectAsStateWithLifecycle()
-    val playbackError by viewModel.playbackError.collectAsStateWithLifecycle()
+    val selectedTab = uiState.selectedTab
+    val isFullPlayerOpen = uiState.isFullPlayerOpen
+    val currentSong = uiState.currentSong
+    val isPlaying = uiState.isPlaying
+    val currentPositionMs = uiState.currentPositionMs
+    val durationMs = uiState.durationMs
+    val queue = uiState.queue
+    val repeatMode = uiState.repeatMode
+    val isShuffle = uiState.isShuffle
+    val playbackSpeed = uiState.playbackSpeed
+    val crossfadeSeconds = uiState.crossfadeSeconds
+    val visualizerAmplitudes = uiState.visualizerAmplitudes
+    val waveformSamples = uiState.waveformSamples
+    val onboardingCompleted = uiState.onboardingCompleted
+    val isLoading = uiState.isLoading
+    val isRefreshing = uiState.isRefreshing
+    val allSongs = uiState.allSongs
+    val displayedSongs = uiState.displayedSongs
+    val favoriteSongs = uiState.favoriteSongs
+    val recentlyPlayed = uiState.recentlyPlayed
+    val mostPlayed = uiState.mostPlayed
+    val allPlaylistsWithSongs = uiState.allPlaylistsWithSongs
+    val activePlaylistDetail = uiState.activePlaylistDetail
+    val searchQuery = uiState.searchQuery
+    val sortOption = uiState.sortOption
+    val equalizerState = uiState.equalizerState
+    val themeSettings = uiState.themeSettings
+    val sleepTimerRemainingSeconds = uiState.sleepTimerRemainingSeconds
+    val sleepTimerEndAtTrackEnd = uiState.sleepTimerEndAtTrackEnd
+    val scanStatusMessage = uiState.scanStatusMessage
+    val lastFmSettings = uiState.lastFmSettings
+    val lastFmMessage = uiState.lastFmMessage
+    val lastFmAuthUrl = uiState.lastFmAuthUrl
+    val playbackError = uiState.playbackError
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(currentSong?.id, isPlaying) {
@@ -203,16 +198,15 @@ fun MainAppContent(viewModel: MusicViewModel) {
         scanStatusMessage?.let { snackbarHostState.showSnackbar(it) }
     }
 
-    val currentLyrics by viewModel.currentLyrics.collectAsStateWithLifecycle()
-    val isLyricsLoading by viewModel.isLyricsLoading.collectAsStateWithLifecycle()
-    val isLyricsViewActive by viewModel.isLyricsViewActive.collectAsStateWithLifecycle()
-
-    val showCreatePlaylistDialog by viewModel.showCreatePlaylistDialog.collectAsStateWithLifecycle()
-    val showAddToPlaylistDialog by viewModel.showAddToPlaylistDialog.collectAsStateWithLifecycle()
-    val showSleepTimerDialog by viewModel.showSleepTimerDialog.collectAsStateWithLifecycle()
-    val showSpeedDialog by viewModel.showSpeedDialog.collectAsStateWithLifecycle()
-    val showLastFmDialog by viewModel.showLastFmDialog.collectAsStateWithLifecycle()
-    val showLyricsEditor by viewModel.showLyricsEditor.collectAsStateWithLifecycle()
+    val currentLyrics = uiState.currentLyrics
+    val isLyricsLoading = uiState.isLyricsLoading
+    val isLyricsViewActive = uiState.isLyricsViewActive
+    val showCreatePlaylistDialog = uiState.showCreatePlaylistDialog
+    val showAddToPlaylistDialog = uiState.showAddToPlaylistDialog
+    val showSleepTimerDialog = uiState.showSleepTimerDialog
+    val showSpeedDialog = uiState.showSpeedDialog
+    val showLastFmDialog = uiState.showLastFmDialog
+    val showLyricsEditor = uiState.showLyricsEditor
 
     BackHandler(enabled = isFullPlayerOpen) {
         viewModel.closeFullPlayer()
@@ -291,7 +285,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         )
                     }
 
-                    // Navigation Bar (4 Main Sections)
+                    // Navigation Bar
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 8.dp,
@@ -300,8 +294,8 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         NavigationBarItem(
                             selected = selectedTab == 0,
                             onClick = { viewModel.selectTab(0) },
-                            icon = { Icon(imageVector = Icons.Default.MusicNote, contentDescription = "Músicas") },
-                            label = { Text("Músicas", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                            icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "Início") },
+                            label = { Text("Início", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -312,8 +306,8 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         NavigationBarItem(
                             selected = selectedTab == 1,
                             onClick = { viewModel.selectTab(1) },
-                            icon = { Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "Playlists") },
-                            label = { Text("Playlists", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                            icon = { Icon(imageVector = Icons.Default.MusicNote, contentDescription = "Músicas") },
+                            label = { Text("Músicas", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -324,8 +318,8 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         NavigationBarItem(
                             selected = selectedTab == 2,
                             onClick = { viewModel.selectTab(2) },
-                            icon = { Icon(imageVector = Icons.Default.GraphicEq, contentDescription = "Equalizador") },
-                            label = { Text("Equalizador", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                            icon = { Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "Playlists") },
+                            label = { Text("Playlists", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -336,8 +330,20 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         NavigationBarItem(
                             selected = selectedTab == 3,
                             onClick = { viewModel.selectTab(3) },
+                            icon = { Icon(imageVector = Icons.Default.GraphicEq, contentDescription = "Equalizador") },
+                            label = { Text("Equalizador", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        )
+
+                        NavigationBarItem(
+                            selected = selectedTab == 4,
+                            onClick = { viewModel.selectTab(4) },
                             icon = { Icon(imageVector = Icons.Default.Palette, contentDescription = "Temas") },
-                            label = { Text("Temas", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) },
+                            label = { Text("Temas", fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Normal) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -360,7 +366,21 @@ fun MainAppContent(viewModel: MusicViewModel) {
                 label = "tab_transition"
             ) { tab ->
                 when (tab) {
-                    0 -> TracksScreen(
+                    0 -> HomeScreen(
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                        allSongs = allSongs,
+                        recentlyPlayed = recentlyPlayed,
+                        favoriteSongs = favoriteSongs,
+                        mostPlayed = mostPlayed,
+                        playlists = allPlaylistsWithSongs,
+                        onPlayPause = { viewModel.togglePlayPause() },
+                        onPlaySong = { songs, index -> viewModel.playSongFromList(songs, index) },
+                        onOpenTracks = { viewModel.selectTab(1) },
+                        onOpenPlaylists = { viewModel.selectTab(2) }
+                    )
+
+                    1 -> TracksScreen(
                         songs = displayedSongs,
                         isLoading = isLoading,
                         isRefreshing = isRefreshing,
@@ -394,7 +414,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         }
                     )
 
-                    1 -> PlaylistsScreen(
+                    2 -> PlaylistsScreen(
                         playlistsWithSongs = allPlaylistsWithSongs,
                         isLoading = isLoading,
                         isRefreshing = isRefreshing,
@@ -416,7 +436,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         onRemoveSongFromPlaylist = { pId, sId -> viewModel.removeSongFromPlaylist(pId, sId) }
                     )
 
-                    2 -> EqualizerScreen(
+                    3 -> EqualizerScreen(
                         equalizerState = equalizerState,
                         isLoading = isLoading,
                         isPlaying = isPlaying,
@@ -432,7 +452,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
                         onDeleteCustomPreset = { viewModel.deleteCustomPreset(it) }
                     )
 
-                    3 -> ThemesScreen(
+                    4 -> ThemesScreen(
                         themeConfig = themeSettings,
                         crossfadeSeconds = crossfadeSeconds,
                         scanStatusMessage = scanStatusMessage,
@@ -497,7 +517,7 @@ fun MainAppContent(viewModel: MusicViewModel) {
                 onFavoriteClick = { viewModel.toggleFavorite(it) },
                 onOpenEqualizer = {
                     viewModel.closeFullPlayer()
-                    viewModel.selectTab(2)
+                    viewModel.selectTab(3)
                 },
                 onOpenSleepTimer = { viewModel.showSleepTimerDialog() },
                 onOpenSpeedDialog = { viewModel.showSpeedDialog() },

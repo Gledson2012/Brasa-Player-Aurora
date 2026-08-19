@@ -506,6 +506,116 @@ fun FullPlayerSheet(
                                 )
                             }
                         }
+
+                        AlbumArtStyle.POLAROID_FRAME -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .shadow(18.dp, RoundedCornerShape(12.dp))
+                                    .background(
+                                        MaterialTheme.colorScheme.surface,
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                SongCoverArt(
+                                    song = song,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    cornerRadius = 5.dp
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.55f)
+                                        .height(5.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f))
+                                )
+                            }
+                        }
+
+                        AlbumArtStyle.GLASSMORPHIC -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(4.dp)
+                                    .shadow(20.dp, RoundedCornerShape(30.dp))
+                                    .clip(RoundedCornerShape(30.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.32f),
+                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
+                                            )
+                                        )
+                                    )
+                                    .border(
+                                        1.5.dp,
+                                        Brush.linearGradient(
+                                            listOf(
+                                                Color.White.copy(alpha = 0.7f),
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                                                Color.White.copy(alpha = 0.16f)
+                                            )
+                                        ),
+                                        RoundedCornerShape(30.dp)
+                                    )
+                                    .padding(14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SongCoverArt(
+                                    song = song,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .shadow(12.dp, RoundedCornerShape(22.dp)),
+                                    cornerRadius = 22.dp
+                                )
+                            }
+                        }
+
+                        AlbumArtStyle.NEON_RING -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .rotate(if (isPlaying) rotationAnim.value else 0f)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.32f),
+                                                MaterialTheme.colorScheme.background.copy(alpha = 0.92f)
+                                            )
+                                        )
+                                    )
+                                    .border(
+                                        8.dp,
+                                        Brush.sweepGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary,
+                                                MaterialTheme.colorScheme.secondary,
+                                                MaterialTheme.colorScheme.tertiary,
+                                                MaterialTheme.colorScheme.primary
+                                            )
+                                        ),
+                                        CircleShape
+                                    )
+                                    .padding(15.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SongCoverArt(
+                                    song = song,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                                    cornerRadius = 999.dp
+                                )
+                            }
+                        }
                     }
                 }
 

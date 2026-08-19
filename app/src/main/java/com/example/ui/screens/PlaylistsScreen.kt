@@ -46,6 +46,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,9 +100,13 @@ fun PlaylistsScreen(
     var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
     var playlistQuery by remember { mutableStateOf("") }
     val context = LocalContext.current
-    val visiblePlaylists = playlistsWithSongs.filter { item ->
-        playlistQuery.isBlank() || item.playlist.name.contains(playlistQuery, ignoreCase = true) ||
-            item.playlist.description.contains(playlistQuery, ignoreCase = true)
+    val visiblePlaylists by remember(playlistsWithSongs, playlistQuery) {
+        derivedStateOf {
+            playlistsWithSongs.filter { item ->
+                playlistQuery.isBlank() || item.playlist.name.contains(playlistQuery, ignoreCase = true) ||
+                    item.playlist.description.contains(playlistQuery, ignoreCase = true)
+            }
+        }
     }
 
     // Delete Confirmation Dialog

@@ -24,8 +24,8 @@ import androidx.media3.session.SessionResult
 import com.example.MainActivity
 import com.aistudio.musicplayer.qtzvka.R
 import com.example.audio.AudioPlayerEngine
-import com.example.data.db.AppDatabase
 import com.example.data.model.Song
+import com.example.di.ServiceLocator
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -135,7 +135,8 @@ class MusicPlaybackService : MediaLibraryService() {
     private fun initializePlaybackSession() {
         createNotificationChannel()
 
-        val engine = AudioPlayerEngine.getOrCreateInstance(applicationContext)
+        val container = ServiceLocator.get(applicationContext)
+        val engine = container.audioPlayerEngine
         val sessionActivityIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -166,7 +167,7 @@ class MusicPlaybackService : MediaLibraryService() {
     private fun refreshLibrary() {
         serviceScope.launch {
             try {
-                AppDatabase.getInstance(applicationContext).songDao().getAllSongs()
+                ServiceLocator.get(applicationContext).repository.allSongs
                     .collectLatest { songs ->
                         withContext(Dispatchers.Main) {
                             librarySongs = songs
@@ -266,7 +267,7 @@ class MusicPlaybackService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             params: MediaLibraryService.LibraryParams?
         ): ListenableFuture<LibraryResult<MediaItem>> = Futures.immediateFuture(
-            LibraryResult.ofItem(browsableItem(ROOT_ID, "Music Player"), params)
+            LibraryResult.ofItem(browsableItem(ROOT_ID, getString(R.string.app_name)), params)
         )
 
         override fun onGetChildren(
@@ -293,7 +294,7 @@ class MusicPlaybackService : MediaLibraryService() {
             mediaId: String
         ): ListenableFuture<LibraryResult<MediaItem>> {
             val item = when (mediaId) {
-                ROOT_ID -> browsableItem(ROOT_ID, "Music Player")
+                ROOT_ID -> browsableItem(ROOT_ID, getString(R.string.app_name))
                 LIBRARY_ID -> browsableItem(LIBRARY_ID, "Músicas")
                 else -> (librarySongs.ifEmpty { engine.queue.value })
                     .firstOrNull { it.id.toString() == mediaId }

@@ -69,6 +69,7 @@ fun VisualizerView(
             colors = listOf(secondaryColor, primaryColor)
         )
     }
+    val inactiveDotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
 
     Canvas(
         modifier = modifier
@@ -77,17 +78,18 @@ fun VisualizerView(
     ) {
         val width = size.width
         val canvasHeight = size.height
+        val data = if (amplitudes.isEmpty()) floatArrayOf(0.1f) else amplitudes
 
         when (style) {
             VisualizerStyle.BARS -> {
-                val totalBars = barCount.coerceAtMost(amplitudes.size)
+                val totalBars = barCount.coerceAtMost(data.size).coerceAtLeast(1)
                 val spacing = 3.dp.toPx()
                 val totalSpacing = spacing * (totalBars - 1)
                 val barWidth = ((width - totalSpacing) / totalBars).coerceAtLeast(2.dp.toPx())
 
                 for (i in 0 until totalBars) {
-                    val ampIndex = (i * amplitudes.size / totalBars).coerceIn(0, amplitudes.size - 1)
-                    val rawAmp = if (isPlaying) amplitudes[ampIndex] else 0.08f
+                    val ampIndex = (i * data.size / totalBars).coerceIn(0, data.size - 1)
+                    val rawAmp = if (isPlaying) data[ampIndex] else 0.08f
                     val barHeight = (rawAmp * canvasHeight * 0.9f).coerceIn(4.dp.toPx(), canvasHeight)
 
                     val x = i * (barWidth + spacing)
@@ -112,8 +114,8 @@ fun VisualizerView(
                 for (i in 0..steps) {
                     val x = (i.toFloat() / steps) * width
                     val ampFactor = if (isPlaying && amplitudes.isNotEmpty()) {
-                        val index = (i * amplitudes.size / steps).coerceIn(0, amplitudes.size - 1)
-                        amplitudes[index]
+                        val index = (i * data.size / steps).coerceIn(0, data.size - 1)
+                        data[index]
                     } else 0.1f
 
                     val wave = sin((i * 0.2f) + phaseAnim.value) * baseAmp * ampFactor
@@ -135,8 +137,8 @@ fun VisualizerView(
 
                 for (i in 0..totalPoints) {
                     val x = (i.toFloat() / totalPoints) * width
-                    val ampIndex = (i * amplitudes.size / totalPoints).coerceIn(0, amplitudes.size - 1)
-                    val amp = if (isPlaying) amplitudes[ampIndex] else 0.05f
+                    val ampIndex = (i * data.size / totalPoints).coerceIn(0, data.size - 1)
+                    val amp = if (isPlaying) data[ampIndex] else 0.05f
                     val y = canvasHeight - (amp * canvasHeight * 0.85f).coerceAtLeast(3.dp.toPx())
                     path.lineTo(x, y)
                 }
@@ -173,7 +175,11 @@ fun VisualizerView(
                 val centerX = width / 2f
                 val centerY = canvasHeight / 2f
                 val maxRadius = minOf(centerX, centerY) * 0.9f
-                val avgAmp = if (isPlaying) amplitudes.average().toFloat().coerceIn(0.1f, 1f) else 0.1f
+                val avgAmp = if (isPlaying && amplitudes.isNotEmpty()) {
+                    amplitudes.average().toFloat().coerceIn(0.1f, 1f)
+                } else {
+                    0.1f
+                }
 
                 for (r in 1..4) {
                     val ringRadius = maxRadius * (r / 4f) * (0.8f + avgAmp * 0.3f)
@@ -185,6 +191,161 @@ fun VisualizerView(
                         style = Stroke(width = 2.5.dp.toPx())
                     )
                 }
+            }
+
+            VisualizerStyle.MIRRORED_BARS -> {
+                val totalBars = barCount.coerceAtMost(data.size).coerceAtLeast(1)
+                val spacing = 3.dp.toPx()
+                val totalSpacing = spacing * (totalBars - 1)
+                val barWidth = ((width - totalSpacing) / totalBars).coerceAtLeast(2.dp.toPx())
+                val centerY = canvasHeight / 2f
+                val maximumHeight = centerY * 0.88f
+
+                for (i in 0 until totalBars) {
+                    val ampIndex = (i * data.size / totalBars).coerceIn(0, data.size - 1)
+                    val rawAmp = if (isPlaying) data[ampIndex] else 0.08f
+                    val barHeight = (rawAmp * maximumHeight).coerceIn(3.dp.toPx(), maximumHeight)
+                    val x = i * (barWidth + spacing)
+
+                    drawRoundRect(
+                        brush = gradientBrush,
+                        topLeft = Offset(x, centerY - barHeight),
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = CornerRadius(barWidth / 2, barWidth / 2)
+                    )
+                    drawRoundRect(
+                        brush = verticalGradientBrush,
+                        topLeft = Offset(x, centerY),
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = CornerRadius(barWidth / 2, barWidth / 2)
+                    )
+                }
+            }
+
+            VisualizerStyle.DOT_MATRIX -> {
+                val columns = barCount.coerceAtMost(32).coerceAtLeast(1)
+                val rows = 5
+                val columnWidth = width / columns
+                val rowHeight = canvasHeight / rows
+                val dotRadius = minOf(columnWidth, rowHeight) * 0.18f
+
+                for (column in 0 until columns) {
+                    val ampIndex = (column * data.size / columns).coerceIn(0, data.size - 1)
+                    val amplitude = if (isPlaying) data[ampIndex].coerceIn(0f, 1f) else 0.12f
+                    val activeRows = (amplitude * rows).toInt().coerceIn(1, rows)
+
+                    for (row in 0 until rows) {
+                        val isActive = row >= rows - activeRows
+                        val color = if (isActive) {
+                            when ((column + row) % 3) {
+                                0 -> primaryColor
+                                1 -> secondaryColor
+                                else -> tertiaryColor
+                            }
+                        } else {
+                            inactiveDotColor
+                        }
+                        drawCircle(
+                            color = color.copy(alpha = if (isActive) 0.9f else color.alpha),
+                            radius = dotRadius,
+                            center = Offset(
+                                x = columnWidth * (column + 0.5f),
+                                y = rowHeight * (row + 0.5f)
+                            )
+                        )
+                    }
+                }
+            }
+
+            VisualizerStyle.ORBITAL -> {
+                val center = Offset(width / 2f, canvasHeight / 2f)
+                val orbitRadius = minOf(width, canvasHeight) * 0.34f
+                val pointCount = 24
+                val fullCircle = (2f * PI.toFloat())
+
+                drawCircle(
+                    color = primaryColor.copy(alpha = 0.10f),
+                    radius = orbitRadius * 1.65f,
+                    center = center
+                )
+                drawCircle(
+                    color = secondaryColor.copy(alpha = 0.35f),
+                    radius = orbitRadius,
+                    center = center,
+                    style = Stroke(width = 1.5.dp.toPx())
+                )
+
+                for (i in 0 until pointCount) {
+                    val ampIndex = (i * data.size / pointCount).coerceIn(0, data.size - 1)
+                    val amplitude = if (isPlaying) data[ampIndex].coerceIn(0f, 1f) else 0.12f
+                    val angle = (i.toFloat() / pointCount) * fullCircle + phaseAnim.value
+                    val pointDistance = orbitRadius * (0.72f + amplitude * 0.55f)
+                    val point = Offset(
+                        x = center.x + cos(angle) * pointDistance,
+                        y = center.y + sin(angle) * pointDistance
+                    )
+
+                    drawLine(
+                        color = primaryColor.copy(alpha = 0.18f + amplitude * 0.28f),
+                        start = center,
+                        end = point,
+                        strokeWidth = 1.dp.toPx()
+                    )
+                    drawCircle(
+                        color = if (i % 2 == 0) primaryColor else secondaryColor,
+                        radius = 1.8.dp.toPx() + amplitude * 3.5.dp.toPx(),
+                        center = point
+                    )
+                }
+
+                drawCircle(
+                    color = tertiaryColor,
+                    radius = 4.dp.toPx() + (if (isPlaying) sin(phaseAnim.value) * 1.5.dp.toPx() else 0f),
+                    center = center
+                )
+            }
+
+            VisualizerStyle.RADIAL_BURST -> {
+                val center = Offset(width / 2f, canvasHeight / 2f)
+                val spokeCount = 28
+                val innerRadius = minOf(width, canvasHeight) * 0.16f
+                val maxLength = minOf(width, canvasHeight) * 0.38f
+                val fullCircle = (2f * PI.toFloat())
+
+                drawCircle(
+                    color = secondaryColor.copy(alpha = 0.18f),
+                    radius = innerRadius * 1.5f,
+                    center = center
+                )
+
+                for (i in 0 until spokeCount) {
+                    val ampIndex = (i * data.size / spokeCount).coerceIn(0, data.size - 1)
+                    val amplitude = if (isPlaying) data[ampIndex].coerceIn(0f, 1f) else 0.12f
+                    val angle = (i.toFloat() / spokeCount) * fullCircle + phaseAnim.value * 0.35f
+                    val endRadius = innerRadius + maxLength * (0.18f + amplitude * 0.82f)
+                    val start = Offset(
+                        x = center.x + cos(angle) * innerRadius,
+                        y = center.y + sin(angle) * innerRadius
+                    )
+                    val end = Offset(
+                        x = center.x + cos(angle) * endRadius,
+                        y = center.y + sin(angle) * endRadius
+                    )
+
+                    drawLine(
+                        color = if (i % 3 == 0) tertiaryColor else primaryColor,
+                        start = start,
+                        end = end,
+                        strokeWidth = 2.dp.toPx() + amplitude * 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                drawCircle(
+                    color = secondaryColor,
+                    radius = innerRadius * 0.72f,
+                    center = center
+                )
             }
         }
     }
