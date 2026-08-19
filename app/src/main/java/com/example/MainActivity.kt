@@ -642,6 +642,7 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                 settings = lastFmSettings,
                 message = lastFmMessage,
                 authUrl = lastFmAuthUrl,
+                pendingScrobbleCount = uiState.pendingScrobbleCount,
                 onDismiss = { viewModel.dismissLastFmDialog() },
                 onSaveCredentials = viewModel::saveLastFmCredentials,
                 onRequestAuthorization = viewModel::requestLastFmAuthorization,
@@ -650,7 +651,9 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                 },
                 onCompleteAuthorization = viewModel::completeLastFmAuthorization,
                 onToggleEnabled = viewModel::setLastFmEnabled,
-                onDisconnect = viewModel::disconnectLastFm
+                onDisconnect = viewModel::disconnectLastFm,
+                onClearPendingScrobbles = viewModel::clearPendingScrobbles,
+                onProcessPendingScrobbles = viewModel::processPendingScrobbles
             )
         }
 

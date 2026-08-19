@@ -15,6 +15,7 @@ import com.example.data.backup.BackupManager
 import com.example.data.datastore.ThemePreferencesDataStore
 import com.example.data.datastore.LastFmPreferencesDataStore
 import com.example.data.lastfm.LastFmClient
+import com.example.data.lastfm.ScrobbleQueueManager
 import com.example.data.lyrics.LyricsManager
 import com.example.data.lyrics.TrackLyrics
 import com.example.data.model.AlbumArtStyle
@@ -62,7 +63,8 @@ class MusicViewModel(
     private val themeDataStore: ThemePreferencesDataStore,
     private val lastFmDataStore: LastFmPreferencesDataStore,
     private val backupManager: BackupManager,
-    private val playerEngine: AudioPlayerEngine
+    private val playerEngine: AudioPlayerEngine,
+    private val scrobbleQueueManager: ScrobbleQueueManager
 ) : AndroidViewModel(application) {
 
     // Player engine state exposures
@@ -192,6 +194,9 @@ class MusicViewModel(
 
     private val _showLastFmDialog = MutableStateFlow(false)
     val showLastFmDialog: StateFlow<Boolean> = _showLastFmDialog.asStateFlow()
+
+    val pendingScrobbleCount: StateFlow<Int> = scrobbleQueueManager.pendingCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     private val _showLyricsEditor = MutableStateFlow(false)
     val showLyricsEditor: StateFlow<Boolean> = _showLyricsEditor.asStateFlow()
@@ -426,8 +431,9 @@ class MusicViewModel(
         uiStateBase,
         messages,
         dialogs,
-        lyricsState
-    ) { state, appMessages, dialogState, lyrics ->
+        lyricsState,
+        pendingScrobbleCount
+    ) { state, appMessages, dialogState, lyrics, scrobbleCount ->
         state.copy(
             scanStatusMessage = appMessages.scanStatusMessage,
             lastFmMessage = appMessages.lastFmMessage,
@@ -440,7 +446,8 @@ class MusicViewModel(
             showSleepTimerDialog = dialogState.showSleepTimerDialog,
             showSpeedDialog = dialogState.showSpeedDialog,
             showLastFmDialog = dialogState.showLastFmDialog,
-            showLyricsEditor = dialogState.showLyricsEditor
+            showLyricsEditor = dialogState.showLyricsEditor,
+            pendingScrobbleCount = scrobbleCount
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, MusicUiState())
 
@@ -468,7 +475,7 @@ class MusicViewModel(
                 val settings = lastFmSettings.value
                 if (settings.enabled && settings.isAuthenticated) {
                     try {
-                        LastFmClient(settings).updateNowPlaying(song)
+                        scrobbleQueueManager.updateNowPlaying(song)
                     } catch (_: Exception) {
                         // Playback must not depend on Last.fm availability.
                     }
@@ -525,7 +532,7 @@ class MusicViewModel(
                 ) {
                     lastFmScrobbledSongId = song.id
                     try {
-                        LastFmClient(settings).scrobble(song)
+                        scrobbleQueueManager.queueScrobble(song)
                     } catch (e: Exception) {
                         setLastFmMessage("Last.fm: ${e.message ?: "falha ao enviar scrobble"}")
                     }
@@ -1268,23 +1275,46 @@ class MusicViewModel(
     }
 
     fun setLastFmEnabled(enabled: Boolean) {
-        viewModelScope.launch { lastFmDataStore.setEnabled(enabled) }
+        viewModelScope.launch {
+            lastFmDataStore.setEnabled(enabled)
+            if (enabled && lastFmSettings.value.isAuthenticated) {
+                scrobbleQueueManager.processPendingScrobbles()
+            }
+        }
     }
 
     fun disconnectLastFm() {
         viewModelScope.launch {
             lastFmDataStore.clear()
             _lastFmAuthUrl.value = null
+            scrobbleQueueManager.clearPendingScrobbles()
             setLastFmMessage("Last.fm desconectado.")
+        }
+    }
+
+    fun clearPendingScrobbles() {
+        viewModelScope.launch {
+            scrobbleQueueManager.clearPendingScrobbles()
+            setLastFmMessage("Fila de scrobbles limpa.")
+        }
+    }
+
+    fun processPendingScrobbles() {
+        viewModelScope.launch {
+            scrobbleQueueManager.processPendingScrobbles()
+            setLastFmMessage("Processando scrobbles pendentes...")
         }
     }
 
     fun exportBackup(context: Context, uri: Uri) {
         viewModelScope.launch {
-            setScanStatusMessage("Criando backup...")
             try {
                 withContext(Dispatchers.IO) {
-                    backupManager.export(context, uri)
+                    backupManager.export(context, uri) { message ->
+                        viewModelScope.launch(Dispatchers.Main) {
+                            setScanStatusMessage(message)
+                        }
+                    }
                 }
                 setScanStatusMessage("Backup salvo com sucesso.")
             } catch (e: Exception) {
@@ -1297,10 +1327,13 @@ class MusicViewModel(
 
     fun restoreBackup(context: Context, uri: Uri) {
         viewModelScope.launch {
-            setScanStatusMessage("Restaurando backup...")
             try {
                 val songs = withContext(Dispatchers.IO) {
-                    backupManager.restore(context, uri)
+                    backupManager.restore(context, uri) { message ->
+                        viewModelScope.launch(Dispatchers.Main) {
+                            setScanStatusMessage(message)
+                        }
+                    }
                 }
                 if (songs.isNotEmpty()) playerEngine.setQueue(songs, startIndex = 0, autoPlay = false)
                 setScanStatusMessage("Backup restaurado: ${songs.size} música(s).")
@@ -1338,7 +1371,8 @@ class MusicViewModel(
         private val themeDataStore: ThemePreferencesDataStore,
         private val lastFmDataStore: LastFmPreferencesDataStore,
         private val backupManager: BackupManager,
-        private val playerEngine: AudioPlayerEngine
+        private val playerEngine: AudioPlayerEngine,
+        private val scrobbleQueueManager: ScrobbleQueueManager
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -1351,7 +1385,8 @@ class MusicViewModel(
                 themeDataStore = themeDataStore,
                 lastFmDataStore = lastFmDataStore,
                 backupManager = backupManager,
-                playerEngine = playerEngine
+                playerEngine = playerEngine,
+                scrobbleQueueManager = scrobbleQueueManager
             ) as T
         }
     }

@@ -82,6 +82,8 @@ import com.example.data.model.ThemeConfig
 import com.example.data.model.ThemeMode
 import com.example.data.model.VisualizerStyle
 import com.example.ui.components.hapticTick
+import com.example.ui.theme.DynamicColorPreview
+import com.example.ui.theme.extractDynamicColorPreview
 
 // Curated Vibrant Colors for Custom Palette Builder
 val CUSTOM_PRIMARY_PALETTE = listOf(
@@ -426,6 +428,15 @@ fun ThemesScreen(
                     ),
                     modifier = Modifier.testTag("dynamic_colors_switch")
                 )
+            }
+        }
+
+        // Dynamic Color Preview (shows extracted wallpaper colors)
+        if (supportsDynamicColor && !themeConfig.dynamicColors) {
+            val colorPreview = remember { extractDynamicColorPreview(context) }
+            if (colorPreview != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                DynamicColorPreviewCard(colorPreview)
             }
         }
 
@@ -1241,6 +1252,81 @@ fun ThemeModeOptionCard(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+fun DynamicColorPreviewCard(preview: DynamicColorPreview) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("dynamic_color_preview"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = preview.surface.copy(alpha = 0.6f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, preview.primary.copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = preview.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Cores extraídas do seu wallpaper",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Pré-visualização do Material You (tema escuro):",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    preview.primary to "Primária",
+                    preview.secondary to "Secundária",
+                    preview.tertiary to "Terciária",
+                    preview.primaryContainer to "Container"
+                ).forEach { (color, label) ->
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(color)
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Ative o Material You para aplicar automaticamente.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
     }

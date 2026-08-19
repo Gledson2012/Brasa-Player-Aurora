@@ -2,6 +2,7 @@ package com.example.service
 
 import android.content.Context
 import android.util.Log
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -12,17 +13,17 @@ import androidx.work.WorkerParameters
 import com.example.data.datastore.LastFmPreferencesDataStore
 import com.example.data.db.AppDatabase
 import com.example.data.lastfm.LastFmClient
-import com.example.data.model.LastFmSettings
-import com.example.data.model.PendingScrobbleEntity
+import com.example.data.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 
 /**
  * WorkManager worker that processes pending scrobbles queue.
  *
  * Runs when network is available and processes scrobbles in batches.
- * Each scrobble is retried up to 3 times before being discarded.
+ * Each scrobble is retried up to three times before being discarded.
  */
 class ScrobbleWorker(
     context: Context,
@@ -37,7 +38,8 @@ class ScrobbleWorker(
 
         /**
          * Enqueue a one-time work request to process pending scrobbles.
-         * Uses ExistingWorkPolicy.KEEP to avoid duplicate work requests.
+         * Uses a unique appendable chain so concurrent enqueue calls do not
+         * create parallel workers or cancel the worker currently in progress.
          */
         fun enqueue(context: Context) {
             val constraints = Constraints.Builder()
@@ -46,14 +48,25 @@ class ScrobbleWorker(
 
             val workRequest = OneTimeWorkRequestBuilder<ScrobbleWorker>()
                 .setConstraints(constraints)
+                .setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    30L,
+                    TimeUnit.SECONDS
+                )
+                .addTag(WORK_NAME)
                 .build()
 
-            WorkManager.getInstance(context)
+            WorkManager.getInstance(context.applicationContext)
                 .enqueueUniqueWork(
                     WORK_NAME,
-                    ExistingWorkPolicy.KEEP,
+                    ExistingWorkPolicy.APPEND_OR_REPLACE,
                     workRequest
                 )
+        }
+
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context.applicationContext)
+                .cancelUniqueWork(WORK_NAME)
         }
     }
 
@@ -64,12 +77,13 @@ class ScrobbleWorker(
             val lastFmDataStore = LastFmPreferencesDataStore(applicationContext)
             val settings = lastFmDataStore.settingsFlow.first()
 
-            if (settings.apiKey.isBlank() || settings.sessionKey.isBlank()) {
+            if (!settings.enabled || !settings.isAuthenticated) {
                 Log.d(TAG, "Last.fm not configured, skipping scrobble processing")
                 return@withContext Result.success()
             }
 
             val client = LastFmClient(settings)
+            scrobbleDao.deleteExhaustedScrobbles(MAX_RETRIES)
             val pendingScrobbles = scrobbleDao.getScrobblesReadyForRetry(MAX_RETRIES, BATCH_SIZE)
 
             if (pendingScrobbles.isEmpty()) {
@@ -79,11 +93,12 @@ class ScrobbleWorker(
 
             Log.d(TAG, "Processing ${pendingScrobbles.size} pending scrobbles")
             val successfullySubmitted = mutableListOf<Long>()
+            var failedCount = 0
 
             for (scrobble in pendingScrobbles) {
                 try {
                     client.scrobble(
-                        song = com.example.data.model.Song(
+                        song = Song(
                             title = scrobble.title,
                             artist = scrobble.artist,
                             album = scrobble.album,
@@ -94,12 +109,9 @@ class ScrobbleWorker(
                     successfullySubmitted.add(scrobble.id)
                     Log.d(TAG, "Successfully scrobbled: ${scrobble.artist} - ${scrobble.title}")
                 } catch (e: Exception) {
+                    failedCount++
                     Log.w(TAG, "Failed to scrobble: ${scrobble.artist} - ${scrobble.title}", e)
-                    val updatedScrobble = scrobble.copy(
-                        retryCount = scrobble.retryCount + 1,
-                        lastError = e.message?.take(500)
-                    )
-                    scrobbleDao.updatePendingScrobble(updatedScrobble)
+                    scrobbleDao.markAttemptFailed(scrobble.id, e.message?.take(500))
                 }
             }
 
@@ -108,9 +120,16 @@ class ScrobbleWorker(
                 Log.d(TAG, "Successfully submitted ${successfullySubmitted.size} scrobbles")
             }
 
-            // If there are more scrobbles pending, schedule another run
+            // Remove records that reached the per-item retry limit.
+            scrobbleDao.deleteExhaustedScrobbles(MAX_RETRIES)
             val remainingCount = scrobbleDao.getScrobblesReadyForRetryOnce()
+            if (failedCount > 0 && remainingCount > 0) {
+                // Network/API failures use WorkManager's exponential backoff.
+                return@withContext Result.retry()
+            }
             if (remainingCount > 0) {
+                // A successful page can be followed by another page without
+                // cancelling this worker or creating parallel work.
                 enqueue(applicationContext)
             }
 

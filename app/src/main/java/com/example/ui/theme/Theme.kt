@@ -2,6 +2,8 @@ package com.example.ui.theme
 
 import android.content.Context
 import android.os.Build
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -10,6 +12,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
@@ -399,7 +402,12 @@ fun buildColorScheme(
             ThemeMode.DARK -> true
             ThemeMode.CUSTOM -> themeConfig.customTheme.isDark
         }
-        return if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        return try {
+            if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        } catch (e: Exception) {
+            // Fallback to current theme if dynamic colors fail
+            buildColorSchemeForPreset(themeConfig.presetTheme, !isDark)
+        }
     }
 
     return when (themeConfig.themeMode) {
@@ -427,6 +435,49 @@ fun buildColorSchemeForTheme(theme: AppThemeType): ColorScheme {
     return buildColorSchemeForPreset(theme)
 }
 
+/**
+ * Extract dynamic color preview from the device wallpaper.
+ * Returns a list of key colors (primary, secondary, tertiary, etc.) for preview.
+ * Only works on Android 12+ (API 31+).
+ */
+fun extractDynamicColorPreview(context: Context): DynamicColorPreview? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+
+    return try {
+        val darkScheme = dynamicDarkColorScheme(context)
+        val lightScheme = dynamicLightColorScheme(context)
+        DynamicColorPreview(
+            primary = darkScheme.primary,
+            primaryContainer = darkScheme.primaryContainer,
+            secondary = darkScheme.secondary,
+            secondaryContainer = darkScheme.secondaryContainer,
+            tertiary = darkScheme.tertiary,
+            tertiaryContainer = darkScheme.tertiaryContainer,
+            background = darkScheme.background,
+            surface = darkScheme.surface,
+            lightPrimary = lightScheme.primary,
+            lightSecondary = lightScheme.secondary,
+            lightTertiary = lightScheme.tertiary
+        )
+    } catch (e: Exception) {
+        null
+    }
+}
+
+data class DynamicColorPreview(
+    val primary: Color,
+    val primaryContainer: Color,
+    val secondary: Color,
+    val secondaryContainer: Color,
+    val tertiary: Color,
+    val tertiaryContainer: Color,
+    val background: Color,
+    val surface: Color,
+    val lightPrimary: Color,
+    val lightSecondary: Color,
+    val lightTertiary: Color
+)
+
 @Composable
 fun MusicPlayerTheme(
     themeConfig: ThemeConfig = ThemeConfig(),
@@ -434,10 +485,42 @@ fun MusicPlayerTheme(
 ) {
     val context = LocalContext.current
     val isSystemDark = isSystemInDarkTheme()
-    val colorScheme = buildColorScheme(themeConfig, isSystemDark, context)
+    val targetColorScheme = buildColorScheme(themeConfig, isSystemDark, context)
+
+    // Smooth animated transition for key colors (600ms)
+    val animSpec = tween<Color>(durationMillis = 600)
+    val animatedPrimary by animateColorAsState(targetColorScheme.primary, animSpec)
+    val animatedOnPrimary by animateColorAsState(targetColorScheme.onPrimary, animSpec)
+    val animatedPrimaryContainer by animateColorAsState(targetColorScheme.primaryContainer, animSpec)
+    val animatedSecondary by animateColorAsState(targetColorScheme.secondary, animSpec)
+    val animatedSecondaryContainer by animateColorAsState(targetColorScheme.secondaryContainer, animSpec)
+    val animatedTertiary by animateColorAsState(targetColorScheme.tertiary, animSpec)
+    val animatedBackground by animateColorAsState(targetColorScheme.background, animSpec)
+    val animatedOnBackground by animateColorAsState(targetColorScheme.onBackground, animSpec)
+    val animatedSurface by animateColorAsState(targetColorScheme.surface, animSpec)
+    val animatedOnSurface by animateColorAsState(targetColorScheme.onSurface, animSpec)
+    val animatedSurfaceVariant by animateColorAsState(targetColorScheme.surfaceVariant, animSpec)
+    val animatedOnSurfaceVariant by animateColorAsState(targetColorScheme.onSurfaceVariant, animSpec)
+    val animatedOutline by animateColorAsState(targetColorScheme.outline, animSpec)
+
+    val animatedScheme = targetColorScheme.copy(
+        primary = animatedPrimary,
+        onPrimary = animatedOnPrimary,
+        primaryContainer = animatedPrimaryContainer,
+        secondary = animatedSecondary,
+        secondaryContainer = animatedSecondaryContainer,
+        tertiary = animatedTertiary,
+        background = animatedBackground,
+        onBackground = animatedOnBackground,
+        surface = animatedSurface,
+        onSurface = animatedOnSurface,
+        surfaceVariant = animatedSurfaceVariant,
+        onSurfaceVariant = animatedOnSurfaceVariant,
+        outline = animatedOutline
+    )
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = animatedScheme,
         typography = Typography,
         content = content
     )

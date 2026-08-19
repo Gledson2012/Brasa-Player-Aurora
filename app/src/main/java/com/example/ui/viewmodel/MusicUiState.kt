@@ -41,6 +41,7 @@ data class MusicUiState(
     val equalizerState: EqualizerState = EqualizerState(),
     val themeSettings: ThemeConfig = ThemeConfig(),
     val lastFmSettings: LastFmSettings = LastFmSettings(),
+    val pendingScrobbleCount: Int = 0,
     val scanStatusMessage: String? = null,
     val lastFmMessage: String? = null,
     val lastFmAuthUrl: String? = null,

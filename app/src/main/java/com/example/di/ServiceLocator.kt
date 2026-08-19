@@ -68,7 +68,8 @@ class AppContainer(context: Context) {
             themeDataStore = themeDataStore,
             lastFmDataStore = lastFmDataStore,
             backupManager = backupManager,
-            playerEngine = audioPlayerEngine
+            playerEngine = audioPlayerEngine,
+            scrobbleQueueManager = scrobbleQueueManager
         )
 }
 

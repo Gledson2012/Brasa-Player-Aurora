@@ -17,11 +17,6 @@ import com.example.data.model.UserSettingsEntity
 import com.example.data.model.VisualizerStyle
 import com.example.data.repository.MusicRepository
 import kotlinx.coroutines.flow.first
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
-import java.io.ByteArrayInputStream
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -30,42 +25,26 @@ class BackupManager(
     private val themeDataStore: ThemePreferencesDataStore
 ) {
     private companion object {
-        const val MAX_BACKUP_BYTES = 25L * 1024L * 1024L
         const val MAX_SONGS = 100_000
         const val MAX_PLAYLISTS = 10_000
-        val GZIP_MAGIC_BYTES = byteArrayOf(0x1f.toByte(), 0x8b.toByte()) // GZIP magic number
     }
 
-    suspend fun export(context: Context, uri: Uri) {
+    suspend fun export(context: Context, uri: Uri, onProgress: ((String) -> Unit)? = null) {
+        onProgress?.invoke("Preparando dados...")
         val root = createBackupJson()
+        onProgress?.invoke("Compactando backup...")
         val jsonBytes = root.toString(2).toByteArray(Charsets.UTF_8)
         val output = requireNotNull(context.contentResolver.openOutputStream(uri))
         output.use { outputStream ->
-            // Write magic bytes to identify GZIP-compressed backups
-            outputStream.write(GZIP_MAGIC_BYTES)
-            GZIPOutputStream(outputStream).use { gzipStream ->
-                gzipStream.write(jsonBytes)
-            }
+            BackupPayloadCodec.writeGzip(outputStream, jsonBytes)
         }
+        onProgress?.invoke("Backup concluído.")
     }
 
-    suspend fun restore(context: Context, uri: Uri): List<Song> {
+    suspend fun restore(context: Context, uri: Uri, onProgress: ((String) -> Unit)? = null): List<Song> {
+        onProgress?.invoke("Lendo backup...")
         val input = requireNotNull(context.contentResolver.openInputStream(uri))
-        val jsonText = input.use { stream ->
-            val bytes = readLimitedBytes(stream)
-            // Check if this is a GZIP-compressed backup
-            if (bytes.size >= GZIP_MAGIC_BYTES.size &&
-                bytes.sliceArray(0 until GZIP_MAGIC_BYTES.size).contentEquals(GZIP_MAGIC_BYTES)) {
-                // GZIP-compressed backup
-                val compressedBytes = bytes.sliceArray(GZIP_MAGIC_BYTES.size until bytes.size)
-                GZIPInputStream(ByteArrayInputStream(compressedBytes)).use { gzipStream ->
-                    gzipStream.readBytes().toString(Charsets.UTF_8)
-                }
-            } else {
-                // Legacy uncompressed backup
-                bytes.toString(Charsets.UTF_8)
-            }
-        }
+        val jsonText = input.use(BackupPayloadCodec::decode)
         val json = JSONObject(jsonText)
         require(json.optInt("version", 0) in 1..2) { "Formato de backup não suportado." }
 
@@ -81,7 +60,9 @@ class BackupManager(
 
         // Keep a recoverable local copy before replacing the database. This is
         // useful when a user selects a malformed or incomplete backup.
+        onProgress?.invoke("Criando backup de segurança...")
         writeEmergencyBackup(context)
+        onProgress?.invoke("Restaurando dados...")
         val songs = repository.restoreBackupSnapshot(snapshot)
 
         json.optJSONObject("theme")?.let { themeDataStore.restore(jsonToTheme(it)) }
@@ -112,10 +93,7 @@ class BackupManager(
         val temporary = backupDir.resolve(".${file.name}.tmp")
         val jsonBytes = createBackupJson().toString(2).toByteArray(Charsets.UTF_8)
         temporary.outputStream().use { outputStream ->
-            outputStream.write(GZIP_MAGIC_BYTES)
-            GZIPOutputStream(outputStream).use { gzipStream ->
-                gzipStream.write(jsonBytes)
-            }
+            BackupPayloadCodec.writeGzip(outputStream, jsonBytes)
         }
         require(temporary.renameTo(file)) { "Não foi possível criar o backup de segurança." }
         backupDir.listFiles()
@@ -327,24 +305,6 @@ class BackupManager(
     private fun <T> JSONObject.array(key: String, mapper: (JSONObject) -> T): List<T> {
         val array = optJSONArray(key) ?: return emptyList()
         return List(array.length()) { index -> mapper(array.getJSONObject(index)) }
-    }
-
-    private fun readLimitedText(input: InputStream): String {
-        return String(readLimitedBytes(input), Charsets.UTF_8)
-    }
-
-    private fun readLimitedBytes(input: InputStream): ByteArray {
-        val output = ByteArrayOutputStream()
-        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        var total = 0L
-        while (true) {
-            val read = input.read(buffer)
-            if (read < 0) break
-            total += read
-            require(total <= MAX_BACKUP_BYTES) { "Backup excede o tamanho máximo permitido." }
-            output.write(buffer, 0, read)
-        }
-        return output.toByteArray()
     }
 
     private fun JSONObject.optNullableString(key: String): String? =

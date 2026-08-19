@@ -1,6 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -8,7 +10,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -19,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -30,13 +35,16 @@ fun LastFmSettingsDialog(
     settings: LastFmSettings,
     message: String?,
     authUrl: String?,
+    pendingScrobbleCount: Int = 0,
     onDismiss: () -> Unit,
     onSaveCredentials: (String, String) -> Unit,
     onRequestAuthorization: () -> Unit,
     onOpenAuthorization: (String) -> Unit,
     onCompleteAuthorization: () -> Unit,
     onToggleEnabled: (Boolean) -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onClearPendingScrobbles: () -> Unit = {},
+    onProcessPendingScrobbles: () -> Unit = {}
 ) {
     var apiKey by remember(settings.apiKey) { mutableStateOf(settings.apiKey) }
     var apiSecret by remember(settings.apiSecret) { mutableStateOf(settings.apiSecret) }
@@ -105,11 +113,42 @@ fun LastFmSettingsDialog(
                     }
                     TextButton(onClick = onDisconnect) { Text("Desconectar") }
                 }
+                // Pending scrobbles section
+                if (settings.isAuthenticated && settings.enabled) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
+                    Text(
+                        text = if (pendingScrobbleCount > 0) 
+                            "Scrobbles pendentes: $pendingScrobbleCount"
+                        else 
+                            "Fila de scrobbles vazia",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    if (pendingScrobbleCount > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onProcessPendingScrobbles,
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Enviar agora") }
+                            OutlinedButton(
+                                onClick = onClearPendingScrobbles,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) { Text("Limpar fila") }
+                        }
+                    }
+                }
+
                 if (message != null) {
                     Text(
                         text = message,
                         modifier = Modifier.padding(top = 8.dp),
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }

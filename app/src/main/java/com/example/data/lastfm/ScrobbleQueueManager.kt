@@ -6,7 +6,6 @@ import android.net.NetworkCapabilities
 import android.util.Log
 import com.example.data.datastore.LastFmPreferencesDataStore
 import com.example.data.db.ScrobbleDao
-import com.example.data.model.LastFmSettings
 import com.example.data.model.PendingScrobbleEntity
 import com.example.data.model.Song
 import com.example.service.ScrobbleWorker
@@ -29,7 +28,8 @@ class ScrobbleQueueManager(
         private const val TAG = "ScrobbleQueueManager"
     }
 
-    val pendingCount: Flow<Int> = scrobbleDao.getPendingCount()
+    val pendingCount: Flow<Int>
+        get() = scrobbleDao.getPendingCount()
 
     /**
      * Queue a scrobble for submission to Last.fm.
@@ -39,7 +39,7 @@ class ScrobbleQueueManager(
     suspend fun queueScrobble(song: Song, timestampSeconds: Long = System.currentTimeMillis() / 1000L) {
         val settings = lastFmDataStore.settingsFlow.first()
 
-        if (settings.apiKey.isBlank() || settings.sessionKey.isBlank()) {
+        if (!settings.enabled || !settings.isAuthenticated) {
             Log.d(TAG, "Last.fm not configured, skipping scrobble")
             return
         }
@@ -73,11 +73,15 @@ class ScrobbleQueueManager(
         }
 
         // Queue for later processing
-        scrobbleDao.insertPendingScrobble(pendingScrobble)
+        val insertedId = scrobbleDao.insertPendingScrobble(pendingScrobble)
+        if (insertedId == -1L) {
+            Log.d(TAG, "Scrobble was queued concurrently: ${song.artist} - ${song.title}")
+            return
+        }
         Log.d(TAG, "Queued scrobble: ${song.artist} - ${song.title}")
 
         // Schedule WorkManager to process queue when online
-        ScrobbleWorker.enqueue(context)
+        ScrobbleWorker.enqueue(context.applicationContext)
     }
 
     /**
@@ -87,7 +91,7 @@ class ScrobbleQueueManager(
         if (!isOnline()) return
 
         val settings = lastFmDataStore.settingsFlow.first()
-        if (settings.apiKey.isBlank() || settings.sessionKey.isBlank()) return
+        if (!settings.enabled || !settings.isAuthenticated) return
 
         try {
             val client = LastFmClient(settings)
@@ -101,13 +105,14 @@ class ScrobbleQueueManager(
      * Process any remaining scrobbles in the queue
      */
     suspend fun processPendingScrobbles() {
-        ScrobbleWorker.enqueue(context)
+        ScrobbleWorker.enqueue(context.applicationContext)
     }
 
     /**
      * Clear all pending scrobbles (for logout or reset)
      */
     suspend fun clearPendingScrobbles() {
+        ScrobbleWorker.cancel(context.applicationContext)
         scrobbleDao.clearAllPendingScrobbles()
     }
 
