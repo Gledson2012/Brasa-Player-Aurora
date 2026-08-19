@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Music Player</string>
+    <string name="tab_tracks">Músicas</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="tab_equalizer">Equalizador</string>
+    <string name="tab_themes">Temas</string>
+    <string name="search_hint">Buscar músicas, artistas ou álbuns…</string>
+    <string name="create_playlist">Criar Playlist</string>
+    <string name="new_playlist_title">Nova Playlist</string>
+    <string name="playlist_name_hint">Nome da playlist</string>
+    <string name="now_playing">Tocando Agora</string>
+    <string name="bass_boost">Reforço de Graves</string>
+    <string name="virtualizer">Surround 3D</string>
+    <string name="balance">Balanço (E / D)</string>
+    <string name="sleep_timer">Timer para Dormir</string>
+    <string name="scan_storage">Escanear Áudio Local</string>
+    <string name="playback_notification_channel_name">Reprodução de Música</string>
+    <string name="playback_notification_channel_desc">Controles de reprodução de áudio e notificações de mídia em segundo plano</string>
+    <string name="playback_notification_idle_text">Music Player preparado para reprodução</string>
+</resources>
