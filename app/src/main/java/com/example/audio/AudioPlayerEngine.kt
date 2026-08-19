@@ -331,7 +331,14 @@ class AudioPlayerEngine(
         _queue.value = songs
         if (songs.isNotEmpty() && startIndex in songs.indices) {
             val song = songs[startIndex]
-            if (autoPlay) {
+            // Use gapless playback for queues of real audio files
+            val hasRealAudio = songs.any { !it.mediaUri.isNullOrBlank() }
+            val currentSongIsSynth = song.mediaUri.isNullOrBlank()
+
+            if (hasRealAudio && !currentSongIsSynth && autoPlay) {
+                // Gapless playback: load all real audio items into ExoPlayer's playlist
+                playQueueGapless(songs, startIndex)
+            } else if (autoPlay) {
                 playSong(song)
             } else {
                 _currentSong.value = song
@@ -347,6 +354,51 @@ class AudioPlayerEngine(
                 }
             }
         }
+    }
+
+    /**
+     * Gapless playback: load all real audio songs into ExoPlayer's playlist.
+     * ExoPlayer handles seamless transitions between tracks natively.
+     * Synth tracks in the queue are skipped and handled via our manual queue.
+     */
+    private fun playQueueGapless(songs: List<Song>, startIndex: Int) {
+        crossfadeTransitionJob?.cancel()
+        crossfadeTransitionJob = null
+        isCrossfadeTransitioning = false
+        fadeInJob?.cancel()
+        fadeInJob = null
+        val shouldFadeIn = fadeInNextTrack
+        fadeInNextTrack = false
+        stopCurrentPlayback()
+        _playbackError.value = null
+        _waveformSamples.value = List(96) { 0.12f }
+
+        isUsingSynth = false
+        val player = initExoPlayer()
+
+        // Build MediaItems for all real audio songs in the queue
+        val mediaItems = songs.map { buildMediaItem(it) }
+
+        // Set all items as a playlist for gapless playback
+        player.setMediaItems(mediaItems, startIndex, 0L)
+        player.playbackParameters = PlaybackParameters(_playbackSpeed.value)
+
+        val targetGain = equalizerEngine.getOutputGain()
+        player.volume = if (shouldFadeIn) 0f else targetGain
+        player.prepare()
+        player.play()
+
+        _currentSong.value = songs[startIndex]
+        _durationMs.value = songs[startIndex].durationMs
+        _currentPositionMs.value = 0L
+        _isPlaying.value = true
+
+        onSongChangedCallback?.invoke(songs[startIndex])
+
+        equalizerEngine.bindAudioSession(player.audioSessionId, null)
+        waveformCapture.attach(player.audioSessionId)
+        startProgressTicker()
+        if (shouldFadeIn) startFadeIn(targetGain)
     }
 
     fun setLibrarySongs(songs: List<Song>) {
@@ -693,7 +745,24 @@ class AudioPlayerEngine(
             playableIndices.firstOrNull { it > currentIndex } ?: playableIndices.first()
         }
 
-        playSong(q[nextIndex])
+        val nextSong = q[nextIndex]
+        // If ExoPlayer is in gapless mode and next song is real audio, let it handle transition
+        if (!isUsingSynth && !nextSong.mediaUri.isNullOrBlank() && exoPlayer != null) {
+            // Check if next item is already in ExoPlayer's playlist
+            val player = exoPlayer!!
+            if (player.mediaItemCount > 1) {
+                // Gapless mode: seek to next item in playlist
+                val currentExoIndex = player.currentMediaItemIndex
+                if (currentExoIndex < player.mediaItemCount - 1) {
+                    player.seekToNextMediaItem()
+                    _currentSong.value = nextSong
+                    _durationMs.value = nextSong.durationMs
+                    onSongChangedCallback?.invoke(nextSong)
+                    return
+                }
+            }
+        }
+        playSong(nextSong)
     }
 
     fun playPrevious() {
@@ -713,8 +782,23 @@ class AudioPlayerEngine(
         }
 
         val prevIndex = playableIndices.lastOrNull { it < currentIndex } ?: playableIndices.last()
+        val prevSong = q[prevIndex]
 
-        playSong(q[prevIndex])
+        // If ExoPlayer is in gapless mode and previous song is real audio, let it handle transition
+        if (!isUsingSynth && !prevSong.mediaUri.isNullOrBlank() && exoPlayer != null) {
+            val player = exoPlayer!!
+            if (player.mediaItemCount > 1) {
+                val currentExoIndex = player.currentMediaItemIndex
+                if (currentExoIndex > 0) {
+                    player.seekToPreviousMediaItem()
+                    _currentSong.value = prevSong
+                    _durationMs.value = prevSong.durationMs
+                    onSongChangedCallback?.invoke(prevSong)
+                    return
+                }
+            }
+        }
+        playSong(prevSong)
     }
 
     private fun handleTrackCompletion(fromNaturalEnd: Boolean = false) {

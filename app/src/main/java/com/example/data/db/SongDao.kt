@@ -96,4 +96,35 @@ interface SongDao {
 
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun getSongCount(): Int
+
+    // FTS5 Full-Text Search queries
+    @Query("""
+        SELECT songs.* FROM songs
+        JOIN songs_fts ON songs.rowid = songs_fts.rowid
+        WHERE songs_fts MATCH :query
+        ORDER BY
+            CASE WHEN songs_fts MATCH :query THEN 1 ELSE 0 END DESC,
+            songs.title ASC
+    """)
+    fun searchSongsFts(query: String): Flow<List<Song>>
+
+    @Query("""
+        SELECT songs.* FROM songs
+        JOIN songs_fts ON songs.rowid = songs_fts.rowid
+        WHERE songs_fts MATCH :query
+        ORDER BY songs.title ASC
+    """)
+    suspend fun searchSongsFtsOnce(query: String): List<Song>
+
+    @Query("""
+        SELECT songs.* FROM songs
+        JOIN songs_fts ON songs.rowid = songs_fts.rowid
+        WHERE songs_fts MATCH :query
+        ORDER BY
+            CASE WHEN :sort = 'TITLE' THEN LOWER(songs.title) END ASC,
+            CASE WHEN :sort = 'ARTIST' THEN LOWER(songs.artist) END ASC,
+            CASE WHEN :sort = 'ALBUM' THEN LOWER(songs.album) END ASC,
+            CASE WHEN :sort = 'RECENTLY_ADDED' THEN songs.addedTimestamp END DESC
+    """)
+    fun searchAndSortSongsFts(query: String, sort: String): Flow<List<Song>>
 }

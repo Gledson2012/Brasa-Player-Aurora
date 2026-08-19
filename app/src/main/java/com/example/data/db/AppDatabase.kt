@@ -8,9 +8,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.CustomPresetEntity
 import com.example.data.model.LyricsEntity
+import com.example.data.model.PendingScrobbleEntity
 import com.example.data.model.Playlist
 import com.example.data.model.PlaylistSongCrossRef
 import com.example.data.model.Song
+import com.example.data.model.SongFtsEntity
 import com.example.data.model.UserSettingsEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,9 +25,11 @@ import kotlinx.coroutines.launch
         PlaylistSongCrossRef::class,
         UserSettingsEntity::class,
         CustomPresetEntity::class,
-        LyricsEntity::class
+        LyricsEntity::class,
+        SongFtsEntity::class,
+        PendingScrobbleEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -33,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
     abstract fun userSettingsDao(): UserSettingsDao
     abstract fun lyricsDao(): LyricsDao
+    abstract fun scrobbleDao(): ScrobbleDao
 
     companion object {
         val MIGRATION_2_3 = object : Migration(2, 3) {
@@ -125,6 +130,56 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create FTS4 virtual table for full-text search.
+                db.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS `songs_fts` USING fts4(`title`, `artist`, `album`, `genre`, content=`songs`)"
+                )
+
+                // Populate FTS with existing songs
+                db.execSQL(
+                    "INSERT INTO `songs_fts`(`rowid`, `title`, `artist`, `album`, `genre`) SELECT `rowid`, `title`, `artist`, `album`, `genre` FROM `songs`"
+                )
+
+                // Room requires these content sync triggers for FTS4 content tables.
+                db.execSQL(
+                    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_songs_fts_BEFORE_UPDATE BEFORE UPDATE ON `songs` BEGIN DELETE FROM `songs_fts` WHERE `docid`=OLD.`rowid`; END"
+                )
+                db.execSQL(
+                    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_songs_fts_BEFORE_DELETE BEFORE DELETE ON `songs` BEGIN DELETE FROM `songs_fts` WHERE `docid`=OLD.`rowid`; END"
+                )
+                db.execSQL(
+                    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_songs_fts_AFTER_UPDATE AFTER UPDATE ON `songs` BEGIN INSERT INTO `songs_fts`(`docid`, `title`, `artist`, `album`, `genre`) VALUES (NEW.`rowid`, NEW.`title`, NEW.`artist`, NEW.`album`, NEW.`genre`); END"
+                )
+                db.execSQL(
+                    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_songs_fts_AFTER_INSERT AFTER INSERT ON `songs` BEGIN INSERT INTO `songs_fts`(`docid`, `title`, `artist`, `album`, `genre`) VALUES (NEW.`rowid`, NEW.`title`, NEW.`artist`, NEW.`album`, NEW.`genre`); END"
+                )
+
+                // Create pending scrobbles table for offline queue
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `pending_scrobbles` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `songId` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `artist` TEXT NOT NULL,
+                        `album` TEXT NOT NULL,
+                        `durationSeconds` INTEGER NOT NULL,
+                        `timestampSeconds` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `retryCount` INTEGER NOT NULL,
+                        `lastError` TEXT
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_pending_scrobbles_songId_timestampSeconds` ON `pending_scrobbles` (`songId`, `timestampSeconds`)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -143,6 +198,7 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addMigrations(MIGRATION_5_6)
                     .addMigrations(MIGRATION_6_7)
+                    .addMigrations(MIGRATION_7_8)
                     .build()
                 INSTANCE = instance
                 instance

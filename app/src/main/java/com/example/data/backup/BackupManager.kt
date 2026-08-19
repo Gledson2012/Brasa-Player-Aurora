@@ -19,6 +19,9 @@ import com.example.data.repository.MusicRepository
 import kotlinx.coroutines.flow.first
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.io.ByteArrayInputStream
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -30,17 +33,40 @@ class BackupManager(
         const val MAX_BACKUP_BYTES = 25L * 1024L * 1024L
         const val MAX_SONGS = 100_000
         const val MAX_PLAYLISTS = 10_000
+        val GZIP_MAGIC_BYTES = byteArrayOf(0x1f.toByte(), 0x8b.toByte()) // GZIP magic number
     }
 
     suspend fun export(context: Context, uri: Uri) {
         val root = createBackupJson()
+        val jsonBytes = root.toString(2).toByteArray(Charsets.UTF_8)
         val output = requireNotNull(context.contentResolver.openOutputStream(uri))
-        output.use { it.write(root.toString(2).toByteArray(Charsets.UTF_8)) }
+        output.use { outputStream ->
+            // Write magic bytes to identify GZIP-compressed backups
+            outputStream.write(GZIP_MAGIC_BYTES)
+            GZIPOutputStream(outputStream).use { gzipStream ->
+                gzipStream.write(jsonBytes)
+            }
+        }
     }
 
     suspend fun restore(context: Context, uri: Uri): List<Song> {
         val input = requireNotNull(context.contentResolver.openInputStream(uri))
-        val json = input.use { readLimitedText(it) }.let(::JSONObject)
+        val jsonText = input.use { stream ->
+            val bytes = readLimitedBytes(stream)
+            // Check if this is a GZIP-compressed backup
+            if (bytes.size >= GZIP_MAGIC_BYTES.size &&
+                bytes.sliceArray(0 until GZIP_MAGIC_BYTES.size).contentEquals(GZIP_MAGIC_BYTES)) {
+                // GZIP-compressed backup
+                val compressedBytes = bytes.sliceArray(GZIP_MAGIC_BYTES.size until bytes.size)
+                GZIPInputStream(ByteArrayInputStream(compressedBytes)).use { gzipStream ->
+                    gzipStream.readBytes().toString(Charsets.UTF_8)
+                }
+            } else {
+                // Legacy uncompressed backup
+                bytes.toString(Charsets.UTF_8)
+            }
+        }
+        val json = JSONObject(jsonText)
         require(json.optInt("version", 0) in 1..2) { "Formato de backup não suportado." }
 
         val snapshot = MusicRepository.BackupSnapshot(
@@ -82,9 +108,15 @@ class BackupManager(
 
     private suspend fun writeEmergencyBackup(context: Context) {
         val backupDir = context.getDir("backup", Context.MODE_PRIVATE)
-        val file = backupDir.resolve("pre-restore-${System.currentTimeMillis()}.json")
+        val file = backupDir.resolve("pre-restore-${System.currentTimeMillis()}.json.gz")
         val temporary = backupDir.resolve(".${file.name}.tmp")
-        temporary.writeText(createBackupJson().toString(2), Charsets.UTF_8)
+        val jsonBytes = createBackupJson().toString(2).toByteArray(Charsets.UTF_8)
+        temporary.outputStream().use { outputStream ->
+            outputStream.write(GZIP_MAGIC_BYTES)
+            GZIPOutputStream(outputStream).use { gzipStream ->
+                gzipStream.write(jsonBytes)
+            }
+        }
         require(temporary.renameTo(file)) { "Não foi possível criar o backup de segurança." }
         backupDir.listFiles()
             ?.sortedByDescending { it.lastModified() }
@@ -298,6 +330,10 @@ class BackupManager(
     }
 
     private fun readLimitedText(input: InputStream): String {
+        return String(readLimitedBytes(input), Charsets.UTF_8)
+    }
+
+    private fun readLimitedBytes(input: InputStream): ByteArray {
         val output = ByteArrayOutputStream()
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         var total = 0L
@@ -308,7 +344,7 @@ class BackupManager(
             require(total <= MAX_BACKUP_BYTES) { "Backup excede o tamanho máximo permitido." }
             output.write(buffer, 0, read)
         }
-        return output.toString(Charsets.UTF_8.name())
+        return output.toByteArray()
     }
 
     private fun JSONObject.optNullableString(key: String): String? =

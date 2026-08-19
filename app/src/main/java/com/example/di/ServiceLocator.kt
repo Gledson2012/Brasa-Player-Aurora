@@ -3,10 +3,12 @@ package com.example.di
 import android.app.Application
 import android.content.Context
 import com.example.audio.AudioPlayerEngine
+import com.example.audio.CoverArtCache
 import com.example.data.backup.BackupManager
 import com.example.data.datastore.LastFmPreferencesDataStore
 import com.example.data.datastore.ThemePreferencesDataStore
 import com.example.data.db.AppDatabase
+import com.example.data.lastfm.ScrobbleQueueManager
 import com.example.data.repository.MusicRepository
 import com.example.ui.viewmodel.MusicViewModel
 
@@ -45,6 +47,18 @@ class AppContainer(context: Context) {
 
     val audioPlayerEngine: AudioPlayerEngine by lazy {
         AudioPlayerEngine.getOrCreateInstance(appContext)
+    }
+
+    val scrobbleQueueManager: ScrobbleQueueManager by lazy {
+        ScrobbleQueueManager(
+            scrobbleDao = database.scrobbleDao(),
+            lastFmDataStore = lastFmDataStore,
+            context = appContext
+        )
+    }
+
+    val coverArtCache: CoverArtCache by lazy {
+        CoverArtCache(appContext)
     }
 
     fun musicViewModelFactory(application: Application): MusicViewModel.Factory =
