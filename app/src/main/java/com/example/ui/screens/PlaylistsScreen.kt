@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,6 +76,7 @@ import com.example.ui.components.PLAYLIST_GRADIENTS
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.SongCoverArt
 import com.example.ui.components.PlaylistItemSkeleton
+import com.example.ui.components.hapticTick
 
 @Composable
 fun PlaylistsScreen(
@@ -98,6 +100,7 @@ fun PlaylistsScreen(
 ) {
     var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
     var playlistQuery by remember { mutableStateOf("") }
+    val context = LocalContext.current
     val visiblePlaylists = playlistsWithSongs.filter { item ->
         playlistQuery.isBlank() || item.playlist.name.contains(playlistQuery, ignoreCase = true) ||
             item.playlist.description.contains(playlistQuery, ignoreCase = true)
@@ -191,7 +194,7 @@ fun PlaylistsScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onCreatePlaylistClick() }
+                            .clickable { context.hapticTick(); onCreatePlaylistClick() }
                             .testTag("create_playlist_button"),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(
@@ -262,6 +265,7 @@ fun PlaylistsScreen(
                             modifier = Modifier.weight(1f),
                             testTag = "smart_playlist_favorites",
                             onClick = {
+                                context.hapticTick()
                                 val dummyPlaylist = PlaylistWithSongs(
                                     playlist = Playlist(id = 0, name = "Músicas Favoritas", description = "Suas músicas curtidas com coração", gradientIndex = 1),
                                     songs = favoriteSongs
@@ -278,6 +282,7 @@ fun PlaylistsScreen(
                             modifier = Modifier.weight(1f),
                             testTag = "smart_playlist_recent",
                             onClick = {
+                                context.hapticTick()
                                 val dummyPlaylist = PlaylistWithSongs(
                                     playlist = Playlist(id = -1, name = "Tocadas Recentemente", description = "Histórico de faixas reproduzidas", gradientIndex = 4),
                                     songs = recentlyPlayed
@@ -294,6 +299,7 @@ fun PlaylistsScreen(
                             modifier = Modifier.weight(1f),
                             testTag = "smart_playlist_most_played",
                             onClick = {
+                                context.hapticTick()
                                 val dummyPlaylist = PlaylistWithSongs(
                                     playlist = Playlist(id = -2, name = "Mais Tocadas", description = "Suas músicas mais escutadas", gradientIndex = 2),
                                     songs = mostPlayed
@@ -384,7 +390,7 @@ fun PlaylistsScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onOpenPlaylistDetail(item) }
+                                .clickable { context.hapticTick(); onOpenPlaylistDetail(item) }
                                 .testTag("playlist_item_${item.playlist.id}"),
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(
@@ -436,7 +442,7 @@ fun PlaylistsScreen(
 
                                 // Delete Playlist Button
                                 IconButton(
-                                    onClick = { playlistToDelete = item.playlist },
+                                    onClick = { context.hapticTick(); playlistToDelete = item.playlist },
                                     modifier = Modifier.testTag("delete_playlist_btn_${item.playlist.id}")
                                 ) {
                                     Icon(
@@ -533,6 +539,7 @@ fun PlaylistDetailView(
     val gradient = PLAYLIST_GRADIENTS.getOrElse(playlistWithSongs.playlist.gradientIndex) { PLAYLIST_GRADIENTS[0] }
     val isCustomPlaylist = playlistWithSongs.playlist.id > 0
     var showAddSongsDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val totalDurationMs = playlistWithSongs.songs.sumOf { it.durationMs }
 
@@ -552,7 +559,7 @@ fun PlaylistDetailView(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
-                    onClick = onBack,
+                    onClick = { context.hapticTick(); onBack() },
                     modifier = Modifier.testTag("playlist_detail_back_button")
                 ) {
                     Icon(
@@ -641,6 +648,7 @@ fun PlaylistDetailView(
         ) {
             Button(
                 onClick = {
+                    context.hapticTick()
                     if (playlistWithSongs.songs.isNotEmpty()) {
                         onPlaySong(playlistWithSongs.songs, 0)
                     }
@@ -659,6 +667,7 @@ fun PlaylistDetailView(
 
             FilledTonalButton(
                 onClick = {
+                    context.hapticTick()
                     if (playlistWithSongs.songs.isNotEmpty()) {
                         val shuffled = playlistWithSongs.songs.shuffled()
                         onPlaySong(shuffled, 0)
@@ -677,7 +686,7 @@ fun PlaylistDetailView(
 
             if (isCustomPlaylist) {
                 OutlinedButton(
-                    onClick = { showAddSongsDialog = true },
+                    onClick = { context.hapticTick(); showAddSongsDialog = true },
                     modifier = Modifier.testTag("add_songs_to_playlist_btn"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -735,7 +744,7 @@ fun PlaylistDetailView(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onPlaySong(playlistWithSongs.songs, index) }
+                            .clickable { context.hapticTick(); onPlaySong(playlistWithSongs.songs, index) }
                             .testTag("playlist_track_${song.id}"),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
@@ -814,7 +823,7 @@ fun PlaylistDetailView(
 
                             // Favorite Icon
                             IconButton(
-                                onClick = { onToggleFavorite(song) },
+                                onClick = { context.hapticTick(); onToggleFavorite(song) },
                                 modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
@@ -828,7 +837,7 @@ fun PlaylistDetailView(
                             // Remove from playlist button (only for custom playlists)
                             if (isCustomPlaylist) {
                                 IconButton(
-                                    onClick = { onRemoveSong(song.id) },
+                                    onClick = { context.hapticTick(); onRemoveSong(song.id) },
                                     modifier = Modifier
                                         .size(34.dp)
                                         .testTag("remove_song_from_playlist_${song.id}")
