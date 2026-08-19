@@ -251,7 +251,18 @@ fun MainAppContent(viewModel: MusicViewModel) {
         viewModel.importAudioFiles(context, uris)
     }
 
-    if (!onboardingCompleted) {
+    AnimatedContent(
+        targetState = onboardingCompleted,
+        transitionSpec = {
+            if (targetState) {
+                fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(300))
+            } else {
+                fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(300))
+            }
+        },
+        label = "onboarding_transition"
+    ) { completed ->
+    if (!completed) {
         OnboardingScreen(
             onComplete = { viewModel.completeOnboarding() }
         )
@@ -641,4 +652,5 @@ fun MainAppContent(viewModel: MusicViewModel) {
         }
     }
     } // end else (onboarding)
+    } // end AnimatedContent
 }
