@@ -83,7 +83,7 @@ import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PlaylistsScreen
 import com.example.ui.screens.ThemesScreen
 import com.example.ui.screens.TracksScreen
-import com.example.ui.screens.TuneInScreen
+import com.example.ui.screens.RadiosScreen
 import com.example.ui.theme.MusicPlayerTheme
 import com.example.ui.viewmodel.MusicViewModel
 import com.example.ui.viewmodel.MusicUiState
@@ -176,18 +176,18 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     val lastFmAuthUrl = uiState.lastFmAuthUrl
     val playbackError = uiState.playbackError
     val snackbarHostState = remember { SnackbarHostState() }
-    val openTuneInLink: (String) -> Unit = { url ->
+    val openRadioLink: (String) -> Unit = { url ->
         runCatching {
             context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
         }
     }
-    val playTuneInStation: (String, String, String, String?, String?) -> Unit = { title, category, coverUri, tuneInId, fallbackStreamUrl ->
+    val playRadioStation: (String, String, String, String?, String?) -> Unit = { title, category, coverUri, radioId, streamUrl ->
         viewModel.playRadio(
             title = title,
             category = category,
             coverUri = coverUri,
-            tuneInId = tuneInId,
-            fallbackStreamUrl = fallbackStreamUrl
+            radioId = radioId,
+            streamUrl = streamUrl
         )
     }
 
@@ -562,9 +562,9 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                         onRestore = { showRestoreConfirmation = true }
                     )
 
-                    5 -> TuneInScreen(
-                        onOpenLink = openTuneInLink,
-                        onPlayStation = playTuneInStation
+                    5 -> RadiosScreen(
+                        onOpenLink = openRadioLink,
+                        onPlayStation = playRadioStation
                     )
                 }
                 } // AnimatedContent

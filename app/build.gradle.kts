@@ -91,6 +91,7 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.media3.exoplayer)
+  implementation(libs.androidx.media3.exoplayer.hls)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.session)
   implementation(libs.coil.compose)

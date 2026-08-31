@@ -56,129 +56,312 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
-private const val tuneInHomeUrl = "https://tunein.com/"
-private const val tuneInPremiumUrl = "https://tunein.com/subscribe/?vt=su&source=sidebar.upsell&browse=home"
+private const val radiosHomeUrl = "https://www.radios.com.br/"
+private const val radiosTopUrl = "https://www.radios.com.br/#topradios-tabpanel"
 
-private data class TuneInStation(
+private data class RadioStation(
     val name: String,
     val category: String,
+    val location: String,
     val imageUrl: String,
     val url: String,
-    val tuneInId: String? = null,
-    val fallbackStreamUrl: String? = null
+    val radioId: String? = null,
+    val streamUrl: String? = null
 )
 
-private val tuneInStations = listOf(
-    TuneInStation(
-        name = "Today's Hits",
-        category = "Música",
-        imageUrl = "https://cdn-profiles.tunein.com/z8297/images/brickg.jpg?t=639223308700000000",
-        url = "https://tunein.com/todays-hits/",
-        tuneInId = "s242677"
-    ),
-    TuneInStation(
-        name = "Classic Rock Hits",
-        category = "Música",
-        imageUrl = "https://cdn-profiles.tunein.com/z7806/images/brickg.jpg?t=639099845190000000",
-        url = "https://tunein.com/radio/Classic-Rock-Hits-s249994/",
-        tuneInId = "s249994"
-    ),
-    TuneInStation(
-        name = "Smooth Jazz",
-        category = "Música",
-        imageUrl = "https://cdn-profiles.tunein.com/z7330/images/brickg.jpg?t=639011727140000000",
-        url = "https://tunein.com/radio/Smooth-Jazz-s249973/",
-        tuneInId = "s249973"
-    ),
-    TuneInStation(
-        name = "Country Roads",
-        category = "Música",
-        imageUrl = "https://cdn-profiles.tunein.com/z8317/images/brickg.jpg?t=639232817620000000",
-        url = "https://tunein.com/countryroads/",
-        tuneInId = "s224628"
-    ),
-    TuneInStation(
-        name = "Coffeehouse",
-        category = "Música",
-        imageUrl = "https://cdn-profiles.tunein.com/z7359/images/brickg.jpg?t=639103309540000000",
-        url = "https://tunein.com/radio/Coffeehouse-s304385/",
-        tuneInId = "s304385"
-    ),
-    TuneInStation(
-        name = "Éxitos Mexicanos",
-        category = "Música",
-        imageUrl = "https://cdn-profiles.tunein.com/z8180/images/brickg.jpg?t=639231861250000000",
-        url = "https://tunein.com/radio/%c3%89xitos-Mexicanos-s259790/",
-        tuneInId = "s259790"
-    ),
-    TuneInStation(
-        name = "CNN",
+private val radioStations = listOf(
+    RadioStation(
+        name = "Rádio Jornal 91.3 FM",
         category = "Notícias",
-        imageUrl = "https://cdn-profiles.tunein.com/z5899/images/brickg.jpg?t=638660794510000000",
-        url = "https://tunein.com/cnn/",
-        tuneInId = "s20407"
+        location = "Aracaju / SE",
+        imageUrl = "https://img.radios.com.br/radio/md/radio13492_1693568264.png",
+        url = "https://www.radios.com.br/aovivo/radio-jornal-913-fm/13492",
+        radioId = "13492",
+        streamUrl = "https://www.radios.com.br/play/playlist/13492/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "ABC News",
+    RadioStation(
+        name = "Rádio Regional 91.5 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio13734_1739184764.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-regional-915-fm/13734",
+        radioId = "13734",
+        streamUrl = "https://www.radios.com.br/play/playlist/13734/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Rio FM 102.3",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio13416_1745327959.png",
+        url = "https://www.radios.com.br/aovivo/radio-rio-fm-1023/13416",
+        radioId = "13416",
+        streamUrl = "https://www.radios.com.br/play/playlist/13416/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Vox 97.1 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio13335_1759945649.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-vox-971-fm/13335",
+        radioId = "13335",
+        streamUrl = "https://www.radios.com.br/play/playlist/13335/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Metropolitana 98.5 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio13900_1665067845.png",
+        url = "https://www.radios.com.br/aovivo/radio-metropolitana-985-fm/13900",
+        radioId = "13900",
+        streamUrl = "https://www.radios.com.br/play/playlist/13900/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Costa do Sol 101.7 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio12229_1725363304.png",
+        url = "https://www.radios.com.br/aovivo/radio-costa-do-sol-1017-fm/12229",
+        radioId = "12229",
+        streamUrl = "https://www.radios.com.br/play/playlist/12229/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Morada Sertaneja",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio158074_1696528106.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-morada-sertaneja/158074",
+        radioId = "158074",
+        streamUrl = "https://www.radios.com.br/play/playlist/158074/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Nova Difusora 88.1 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio15245_1686922098.jpeg",
+        url = "https://www.radios.com.br/aovivo/radio-nova-difusora-881-fm/15245",
+        radioId = "15245",
+        streamUrl = "https://www.radios.com.br/play/playlist/15245/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "MPB FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio271701_1771452183.jpg",
+        url = "https://www.radios.com.br/aovivo/mpb-fm/271701",
+        radioId = "271701",
+        streamUrl = "https://www.radios.com.br/play/playlist/271701/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio CBN Salvador 107.9 FM",
         category = "Notícias",
-        imageUrl = "https://cdn-profiles.tunein.com/z8186/images/brickg.jpg?t=639108446150000000",
-        url = "https://tunein.com/radio/ABC-News-s150918/",
-        tuneInId = "s150918"
+        location = "Salvador / BA",
+        imageUrl = "https://img.radios.com.br/radio/md/radio120034_1764155626.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-cbn-salvador-1079-fm/120034",
+        radioId = "120034",
+        streamUrl = "https://www.radios.com.br/play/playlist/120034/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "CNBC",
+    RadioStation(
+        name = "Rádio Bandeirantes 107.3 FM",
         category = "Notícias",
-        imageUrl = "https://cdn-profiles.tunein.com/z8086/images/brickg.jpg?t=639009213190000000",
-        url = "https://tunein.com/radio/CNBC-s110052/",
-        tuneInId = "s110052"
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio10410_1779370265.png",
+        url = "https://www.radios.com.br/aovivo/radio-bandeirantes-1073-fm/10410",
+        radioId = "10410",
+        streamUrl = "https://www.radios.com.br/play/playlist/10410/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "Bloomberg Radio",
-        category = "Notícias",
-        imageUrl = "https://cdn-profiles.tunein.com/z7348/images/brickg.jpg?t=638666005490000000",
-        url = "https://tunein.com/radio/Bloomberg-Radio-s165740/",
-        tuneInId = "s165740"
+    RadioStation(
+        name = "Rádio VIP FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio189281_1721377229.jpeg",
+        url = "https://www.radios.com.br/aovivo/radio-vip-fm/189281",
+        radioId = "189281",
+        streamUrl = "https://www.radios.com.br/play/playlist/189281/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "ESPN Radio",
+    RadioStation(
+        name = "Rádio Fan 99.7 FM",
         category = "Esportes",
-        imageUrl = "https://cdn-profiles.tunein.com/z7531/images/brickg.jpg?t=638745277300000000",
-        url = "https://tunein.com/espnradio/",
-        tuneInId = "s25876"
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio22355_1757079261.jpeg",
+        url = "https://www.radios.com.br/aovivo/radio-fan-997-fm/22355",
+        radioId = "22355",
+        streamUrl = "https://www.radios.com.br/play/playlist/22355/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "talkSPORT",
-        category = "Esportes",
-        imageUrl = "https://cdn-profiles.tunein.com/z7335/images/brickg.jpg?t=638660797820000000",
-        url = "https://tunein.com/radio/talkSPORT-1089-s17077/",
-        tuneInId = "s17077",
-        fallbackStreamUrl = "https://radio.talksport.com/stream"
+    RadioStation(
+        name = "Rádio CV Mais 97.5 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio157979_1628521296.jpeg",
+        url = "https://www.radios.com.br/aovivo/radio-cv-mais-975-fm/157979",
+        radioId = "157979",
+        streamUrl = "https://www.radios.com.br/play/playlist/157979/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "Stuff You Should Know",
-        category = "Podcasts",
-        imageUrl = "https://cdn-profiles.tunein.com/p295446/images/logod.png?t=638853589160000000",
-        url = "https://tunein.com/podcasts/Science-Podcasts/Stuff-You-Should-Know-p295446/",
-        tuneInId = "p295446"
+    RadioStation(
+        name = "Rádio Feliz 98.3 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio231497_1784746427.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-feliz-983-fm/231497",
+        radioId = "231497",
+        streamUrl = "https://www.radios.com.br/play/playlist/231497/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "The Daily",
-        category = "Podcasts",
-        imageUrl = "https://cdn-profiles.tunein.com/p952868/images/logod.png?t=639003119010000000",
-        url = "https://tunein.com/podcasts/News/The-Daily-p952868/",
-        tuneInId = "p952868"
+    RadioStation(
+        name = "Rádio Ankh",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio271389_1757380275.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-ankh/271389",
+        radioId = "271389",
+        streamUrl = "https://www.radios.com.br/play/playlist/271389/listen-radio.m3u"
     ),
-    TuneInStation(
-        name = "Crime Junkie",
-        category = "Podcasts",
-        imageUrl = "https://cdn-profiles.tunein.com/p1086263/images/logod.png?t=638242295120000000",
-        url = "https://tunein.com/podcasts/True-Crime/Crime-Junkie-p1086263/",
-        tuneInId = "p1086263"
+    RadioStation(
+        name = "Rádio Trans Mundial - RTM",
+        category = "Gospel",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio18759_1456511123.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-trans-mundial-rtm/18759",
+        radioId = "18759",
+        streamUrl = "https://www.radios.com.br/play/playlist/18759/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Super Amazônia Brasil",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio150873_1593609322.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-super-amazonia-brasil/150873",
+        radioId = "150873",
+        streamUrl = "https://www.radios.com.br/play/playlist/150873/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Elite Rock",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio93525_1777219585.png",
+        url = "https://www.radios.com.br/aovivo/radio-elite-rock/93525",
+        radioId = "93525",
+        streamUrl = "https://www.radios.com.br/play/playlist/93525/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Radio Saudade 99.7 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio8_1781896993.png",
+        url = "https://www.radios.com.br/aovivo/radio-saudade-997-fm/8",
+        radioId = "8",
+        streamUrl = "https://www.radios.com.br/play/playlist/8/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Tropical 94.1 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio18854_1551092167.png",
+        url = "https://www.radios.com.br/aovivo/radio-tropical-941-fm/18854",
+        radioId = "18854",
+        streamUrl = "https://www.radios.com.br/play/playlist/18854/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Cidade Verde 93.5 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio42987_1573498279.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-cidade-verde-935-fm/42987",
+        radioId = "42987",
+        streamUrl = "https://www.radios.com.br/play/playlist/42987/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Radio Gospel Life",
+        category = "Gospel",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio49251_1552934266.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-gospel-life/49251",
+        radioId = "49251",
+        streamUrl = "https://www.radios.com.br/play/playlist/49251/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Difusora Pantanal 101.9 FM",
+        category = "Notícias",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio12797_1710378155.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-difusora-pantanal-1019-fm/12797",
+        radioId = "12797",
+        streamUrl = "https://www.radios.com.br/play/playlist/12797/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio 105 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio142153_1587118918.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-105-fm/142153",
+        radioId = "142153",
+        streamUrl = "https://www.radios.com.br/play/playlist/142153/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Sinai Web Gospel",
+        category = "Gospel",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio22540_1474915941.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-sinai-web-gospel/22540",
+        radioId = "22540",
+        streamUrl = "https://www.radios.com.br/play/playlist/22540/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Kboing 100.3 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio29604_1785320946.png",
+        url = "https://www.radios.com.br/aovivo/radio-kboing-1003-fm/29604",
+        radioId = "29604",
+        streamUrl = "https://www.radios.com.br/play/playlist/29604/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Cidade das Águas 101.3 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio11672_1737636758.jpeg",
+        url = "https://www.radios.com.br/aovivo/radio-cidade-das-aguas-1013-fm/11672",
+        radioId = "11672",
+        streamUrl = "https://www.radios.com.br/play/playlist/11672/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Cidade 100.7 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio116_1597749797.png",
+        url = "https://www.radios.com.br/aovivo/radio-cidade-1007-fm/116",
+        radioId = "116",
+        streamUrl = "https://www.radios.com.br/play/playlist/116/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio 93 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio98_1551111060.jpg",
+        url = "https://www.radios.com.br/aovivo/radio-93-fm/98",
+        radioId = "98",
+        streamUrl = "https://www.radios.com.br/play/playlist/98/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio Vibra",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio284028_1775829778.png",
+        url = "https://www.radios.com.br/aovivo/radio-vibra/284028",
+        radioId = "284028",
+        streamUrl = "https://www.radios.com.br/play/playlist/284028/listen-radio.m3u"
+    ),
+    RadioStation(
+        name = "Rádio FM O Dia 99.7 FM",
+        category = "Música",
+        location = "Brasil",
+        imageUrl = "https://img.radios.com.br/radio/md/radio229211_1706128532.jpeg",
+        url = "https://www.radios.com.br/aovivo/radio-fm-o-dia-997-fm/229211",
+        radioId = "229211",
+        streamUrl = "https://www.radios.com.br/play/playlist/229211/listen-radio.m3u"
     )
 )
 
 @Composable
-fun TuneInScreen(
+fun RadiosScreen(
     onOpenLink: (String) -> Unit,
     onPlayStation: (String, String, String, String?, String?) -> Unit,
     modifier: Modifier = Modifier
@@ -191,16 +374,17 @@ fun TuneInScreen(
     var customStationCategory by rememberSaveable { mutableStateOf("Música") }
     var customStationError by rememberSaveable { mutableStateOf<String?>(null) }
     val customStations = androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateListOf<TuneInStation>()
+        androidx.compose.runtime.mutableStateListOf<RadioStation>()
     }
-    val categories = listOf("Todos", "Música", "Notícias", "Esportes", "Podcasts")
-    val allStations = tuneInStations + customStations
+    val categories = listOf("Todos", "Música", "Notícias", "Esportes", "Gospel")
+    val allStations = radioStations + customStations
     val normalizedQuery = searchQuery.trim()
     val filteredStations = allStations.filter { station ->
         val matchesCategory = selectedCategory == "Todos" || station.category == selectedCategory
         val matchesQuery = normalizedQuery.isBlank() ||
             station.name.contains(normalizedQuery, ignoreCase = true) ||
-            station.category.contains(normalizedQuery, ignoreCase = true)
+            station.category.contains(normalizedQuery, ignoreCase = true) ||
+            station.location.contains(normalizedQuery, ignoreCase = true)
         matchesCategory && matchesQuery
     }
     val featuredStations = allStations
@@ -252,19 +436,19 @@ fun TuneInScreen(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "RÁDIO ONLINE",
+                    text = "RÁDIOS.COM.BR",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.4.sp
                     )
                     Text(
-                        text = "Descubra seu som",
+                        text = "Milhares de rádios ao vivo",
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Estações, notícias, esportes e podcasts",
+                        text = "Busque por nome, cidade, estado ou país",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -294,13 +478,13 @@ fun TuneInScreen(
         }
 
         item {
-            TuneInHeroCard(station = heroStation, onClick = {
+            RadioHeroCard(station = heroStation, onClick = {
                 onPlayStation(
                     heroStation.name,
                     heroStation.category,
                     heroStation.imageUrl,
-                    heroStation.tuneInId,
-                    heroStation.fallbackStreamUrl
+                    heroStation.radioId,
+                    heroStation.streamUrl
                 )
             })
         }
@@ -310,12 +494,12 @@ fun TuneInScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                TuneInStatCard(
+                RadioStatCard(
                     value = allStations.size.toString(),
-                    label = "estações selecionadas",
+                    label = "rádios em destaque",
                     modifier = Modifier.weight(1f)
                 )
-                TuneInStatCard(
+                RadioStatCard(
                     value = (categories.size - 1).toString(),
                     label = "categorias para explorar",
                     modifier = Modifier.weight(1f)
@@ -355,21 +539,21 @@ fun TuneInScreen(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = "TuneIn Premium",
+                        text = "Catálogo completo",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Mais conteúdo, menos interrupções.",
+                            text = "Explore milhares de rádios no Radios.com.br.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Button(
-                        onClick = { onOpenLink(tuneInPremiumUrl) },
+                        onClick = { onOpenLink(radiosHomeUrl) },
                         contentPadding = PaddingValues(horizontal = 14.dp)
                     ) {
-                        Text("Ver")
+                        Text("Explorar")
                     }
                 }
             }
@@ -385,7 +569,7 @@ fun TuneInScreen(
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Search, contentDescription = null)
                 },
-                placeholder = { Text("Buscar estação ou categoria") },
+                placeholder = { Text("Buscar rádio, cidade ou país") },
                 label = { Text("Descobrir") },
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
@@ -430,8 +614,8 @@ fun TuneInScreen(
         item {
             SectionTitle(
                 title = "Em destaque",
-                subtitle = "Comece por uma seleção popular",
-                onClick = { onOpenLink(tuneInHomeUrl) }
+                subtitle = "As mais acessadas no catálogo",
+                onClick = { onOpenLink(radiosTopUrl) }
             )
         }
 
@@ -441,15 +625,15 @@ fun TuneInScreen(
                 contentPadding = PaddingValues(end = 4.dp)
             ) {
                 items(featuredStations, key = { it.url }) { station ->
-                    TuneInFeaturedCard(
+                    RadioFeaturedCard(
                         station = station,
                         onClick = {
                             onPlayStation(
                                 station.name,
                                 station.category,
                                 station.imageUrl,
-                                station.tuneInId,
-                                station.fallbackStreamUrl
+                                station.radioId,
+                                station.streamUrl
                             )
                         }
                     )
@@ -460,7 +644,7 @@ fun TuneInScreen(
         item {
             SectionTitle(
                 title = if (normalizedQuery.isBlank()) "Todas as estações" else "Resultados",
-                subtitle = "Toque para ouvir no player interno • link para abrir a página"
+                subtitle = "Toque para ouvir no player interno • link para abrir no Radios.com.br"
             )
         }
 
@@ -482,15 +666,15 @@ fun TuneInScreen(
             }
         } else {
             items(filteredStations, key = { it.url }) { station ->
-                TuneInStationRow(
+                RadioStationRow(
                     station = station,
                     onClick = {
                         onPlayStation(
                             station.name,
                             station.category,
                             station.imageUrl,
-                            station.tuneInId,
-                            station.fallbackStreamUrl
+                            station.radioId,
+                            station.streamUrl
                         )
                     },
                     onOpenPage = { onOpenLink(station.url) }
@@ -560,18 +744,19 @@ fun TuneInScreen(
                     } else if (!streamUrl.startsWith("https://") && !streamUrl.startsWith("http://")) {
                         customStationError = "Informe uma URL http:// ou https:// válida."
                     } else {
-                        val station = TuneInStation(
+                        val station = RadioStation(
                             name = stationName,
                             category = customStationCategory,
+                            location = "URL personalizada",
                             imageUrl = "",
                             url = streamUrl,
-                            fallbackStreamUrl = streamUrl
+                            streamUrl = streamUrl
                         )
                         customStations.add(station)
                         showAddStationDialog = false
                         customStationName = ""
                         customStationUrl = ""
-                        onPlayStation(station.name, station.category, station.imageUrl, null, station.fallbackStreamUrl)
+                        onPlayStation(station.name, station.category, station.imageUrl, null, station.streamUrl)
                     }
                 }) {
                     Text("Ouvir agora")
@@ -587,8 +772,8 @@ fun TuneInScreen(
 }
 
 @Composable
-private fun TuneInHeroCard(
-    station: TuneInStation,
+private fun RadioHeroCard(
+    station: RadioStation,
     onClick: () -> Unit
 ) {
     Card(
@@ -633,7 +818,7 @@ private fun TuneInHeroCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Ouça ${station.category.lowercase()} ao vivo",
+                        text = "${station.category} • ${station.location}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.86f)
                     )
@@ -665,7 +850,7 @@ private fun TuneInHeroCard(
 }
 
 @Composable
-private fun TuneInStatCard(
+private fun RadioStatCard(
     value: String,
     label: String,
     modifier: Modifier = Modifier
@@ -732,8 +917,8 @@ private fun SectionTitle(
 }
 
 @Composable
-private fun TuneInFeaturedCard(
-    station: TuneInStation,
+private fun RadioFeaturedCard(
+    station: RadioStation,
     onClick: () -> Unit
 ) {
     Card(
@@ -775,7 +960,7 @@ private fun TuneInFeaturedCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = station.category,
+                    text = "${station.category} • ${station.location}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -785,8 +970,8 @@ private fun TuneInFeaturedCard(
 }
 
 @Composable
-private fun TuneInStationRow(
-    station: TuneInStation,
+private fun RadioStationRow(
+    station: RadioStation,
     onClick: () -> Unit,
     onOpenPage: (() -> Unit)? = null
 ) {
@@ -821,7 +1006,7 @@ private fun TuneInStationRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = station.category,
+                    text = "${station.category} • ${station.location}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -846,7 +1031,7 @@ private fun TuneInStationRow(
 
 @Composable
 private fun StationArtwork(
-    station: TuneInStation,
+    station: RadioStation,
     modifier: Modifier = Modifier
 ) {
     Box(

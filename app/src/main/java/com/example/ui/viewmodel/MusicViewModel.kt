@@ -34,8 +34,8 @@ import com.example.data.model.ThemeConfig
 import com.example.data.model.ThemeMode
 import com.example.data.model.UserSettingsEntity
 import com.example.data.model.VisualizerStyle
+import com.example.data.radio.RadiosStreamResolver
 import com.example.data.repository.MusicRepository
-import com.example.data.tunein.TuneInStreamResolver
 import com.example.service.MusicPlaybackService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -803,23 +803,22 @@ class MusicViewModel(
         }
     }
 
-    /** Resolves and plays a TuneIn station through the same internal player. */
+    /** Plays a Radios.com.br station through the same internal player. */
     fun playRadio(
         title: String,
         category: String,
         coverUri: String,
-        tuneInId: String?,
-        fallbackStreamUrl: String? = null
+        radioId: String?,
+        streamUrl: String? = null
     ) {
         radioPlaybackJob?.cancel()
         radioPlaybackJob = viewModelScope.launch {
             setScanStatusMessage("Conectando a $title…")
-            val resolvedTuneInStream = tuneInId
-                ?.takeIf { it.isNotBlank() }
-                ?.let { TuneInStreamResolver.resolve(it) }
-            val streamUrl = resolvedTuneInStream
-                ?: fallbackStreamUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-            if (streamUrl.isNullOrBlank()) {
+            val sourceUrl = streamUrl?.takeIf {
+                it.startsWith("http://") || it.startsWith("https://")
+            }
+            val playableStreamUrl = sourceUrl?.let { RadiosStreamResolver.resolve(it) }
+            if (playableStreamUrl.isNullOrBlank()) {
                 setScanStatusMessage("A estação \"$title\" não está disponível para reprodução agora.")
                 delay(3500)
                 setScanStatusMessage(null)
@@ -827,14 +826,14 @@ class MusicViewModel(
             }
 
             ensurePlaybackService()
-            val stationKey = tuneInId ?: fallbackStreamUrl ?: title
+            val stationKey = radioId ?: streamUrl ?: title
             val radioSong = Song(
                 id = radioSongId(stationKey),
                 title = title,
-                artist = "TuneIn • $category",
+                artist = "Radios.com.br • $category",
                 album = "Rádio ao vivo",
                 durationMs = 0L,
-                mediaUri = streamUrl,
+                mediaUri = playableStreamUrl,
                 coverUri = coverUri,
                 genre = category,
                 sourceKey = "radio:$stationKey",
@@ -848,10 +847,10 @@ class MusicViewModel(
 
     private fun isRadioSong(song: Song): Boolean = song.sourceKey?.startsWith("radio:") == true
 
-    private fun radioSongId(tuneInId: String): Long {
-        val numericId = tuneInId.filter { it.isDigit() }.toLongOrNull()
+    private fun radioSongId(radioId: String): Long {
+        val numericId = radioId.filter { it.isDigit() }.toLongOrNull()
         val stableId = numericId?.coerceAtLeast(1L)
-            ?: kotlin.math.abs(tuneInId.hashCode().toLong()).coerceAtLeast(1L)
+            ?: kotlin.math.abs(radioId.hashCode().toLong()).coerceAtLeast(1L)
         return -stableId
     }
 

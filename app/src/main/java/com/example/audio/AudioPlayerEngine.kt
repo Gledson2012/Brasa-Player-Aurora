@@ -10,11 +10,15 @@ import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import com.example.data.model.EqualizerState
 import com.example.data.model.Song
@@ -133,7 +137,13 @@ class AudioPlayerEngine(
             .setUsage(C.USAGE_MEDIA)
             .build()
 
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent("BrasaPlayer/1.2")
+            .setAllowCrossProtocolRedirects(true)
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+
         val player = ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
@@ -353,11 +363,19 @@ class AudioPlayerEngine(
             .setIsPlayable(true)
             .build()
 
-        return MediaItem.Builder()
+        val mediaItemBuilder = MediaItem.Builder()
             .setMediaId(song.id.toString())
             .setUri(song.mediaUri?.takeIf { it.isNotBlank() }?.toUri() ?: Uri.EMPTY)
             .setMediaMetadata(metadata)
-            .build()
+
+        if (
+            song.sourceKey?.startsWith("radio:") == true &&
+            song.mediaUri?.contains(".m3u8", ignoreCase = true) == true
+        ) {
+            mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        }
+
+        return mediaItemBuilder.build()
     }
 
     fun setQueue(songs: List<Song>, startIndex: Int = 0, autoPlay: Boolean = true) {
@@ -426,13 +444,13 @@ class AudioPlayerEngine(
         _currentSong.value = songs[startIndex]
         _durationMs.value = songs[startIndex].durationMs
         _currentPositionMs.value = 0L
-        _isPlaying.value = true
+        _isPlaying.value = player.isPlaying
 
         onSongChangedCallback?.invoke(songs[startIndex])
 
         equalizerEngine.bindAudioSession(player.audioSessionId, null)
         waveformCapture.attach(player.audioSessionId)
-        startProgressTicker()
+        if (player.isPlaying) startProgressTicker()
         if (shouldFadeIn) startFadeIn(targetGain)
     }
 
@@ -612,12 +630,12 @@ class AudioPlayerEngine(
             player.prepare()
             player.play()
 
-            _isPlaying.value = true
+            _isPlaying.value = player.isPlaying
             _durationMs.value = song.durationMs
 
             equalizerEngine.bindAudioSession(player.audioSessionId, null)
             waveformCapture.attach(player.audioSessionId)
-            startProgressTicker()
+            if (player.isPlaying) startProgressTicker()
             if (fadeIn) startFadeIn(targetGain)
         } catch (e: Exception) {
             Log.e("AudioPlayerEngine", "Failed to play URI via ExoPlayer: ${song.mediaUri}", e)
