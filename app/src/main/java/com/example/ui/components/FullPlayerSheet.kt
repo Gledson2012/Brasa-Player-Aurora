@@ -79,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -486,7 +487,8 @@ fun FullPlayerSheet(
                                 // Glowing aura
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxSize(1.08f)
+                                        .fillMaxSize()
+                                        .scale(1.08f)
                                         .background(
                                             brush = Brush.radialGradient(
                                                 colors = listOf(

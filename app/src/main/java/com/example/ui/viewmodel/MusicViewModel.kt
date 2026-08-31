@@ -2,9 +2,12 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import androidx.compose.ui.graphics.Color
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -99,16 +102,36 @@ class MusicViewModel(
     fun refreshLibrary() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            // Re-scan local storage to pick up any new files
             try {
                 val context = getApplication<Application>().applicationContext
+                if (!hasAudioPermission(context)) {
+                    setScanStatusMessage("Permissão de áudio necessária para escanear músicas.")
+                    return@launch
+                }
+
+                // Re-scan local storage to pick up any new files.
                 withContext(Dispatchers.IO) {
                     repository.scanDeviceAudio(context)
                 }
-            } catch (_: Exception) { }
-            delay(800) // minimum visual feedback time
-            _isRefreshing.value = false
+                delay(800) // minimum visual feedback time
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("MusicViewModel", "Error refreshing local storage", e)
+                setScanStatusMessage(e.message ?: "Falha ao atualizar as músicas.")
+            } finally {
+                _isRefreshing.value = false
+            }
         }
+    }
+
+    private fun hasAudioPermission(context: Context): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            android.Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     }
 
     // DB Songs Flow
@@ -476,6 +499,8 @@ class MusicViewModel(
                 if (settings.enabled && settings.isAuthenticated) {
                     try {
                         scrobbleQueueManager.updateNowPlaying(song)
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (_: Exception) {
                         // Playback must not depend on Last.fm availability.
                     }
@@ -504,6 +529,8 @@ class MusicViewModel(
                     try {
                         val lyrics = loadLyrics(song)
                         _currentLyrics.value = lyrics
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.e("MusicViewModel", "Error loading lyrics for ${song.title}", e)
                     } finally {
@@ -533,6 +560,8 @@ class MusicViewModel(
                     lastFmScrobbledSongId = song.id
                     try {
                         scrobbleQueueManager.queueScrobble(song)
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         setLastFmMessage("Last.fm: ${e.message ?: "falha ao enviar scrobble"}")
                     }
@@ -568,10 +597,16 @@ class MusicViewModel(
                     val eq = EqualizerState(
                         isEnabled = settings.equalizerEnabled,
                         currentPresetId = settings.currentPresetId,
-                        bandLevels = listOf(settings.band0, settings.band1, settings.band2, settings.band3, settings.band4),
-                        bassBoost = settings.bassBoost,
-                        virtualizer = settings.virtualizer,
-                        balance = settings.balance
+                        bandLevels = listOf(settings.band0, settings.band1, settings.band2, settings.band3, settings.band4)
+                            .map { it.coerceIn(-10, 10) },
+                        bassBoost = settings.bassBoost.coerceIn(0, 100),
+                        virtualizer = settings.virtualizer.coerceIn(0, 100),
+                        balance = settings.balance.coerceIn(-1f, 1f),
+                        // Room emits settings after every adjustment. Preserve
+                        // the already loaded custom presets until their own
+                        // flow emits, otherwise a settings update briefly
+                        // wipes them from the UI.
+                        customPresets = _equalizerState.value.customPresets
                     )
                     _equalizerState.value = eq
                     playerEngine.syncEqualizer(eq)
@@ -789,6 +824,8 @@ class MusicViewModel(
                 LyricsManager.clearCache(song.id)
                 playerEngine.removeSong(song.id)
                 setScanStatusMessage("Música removida da biblioteca.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("MusicViewModel", "Error deleting song ${song.id}", e)
                 setScanStatusMessage(e.message ?: "Não foi possível remover a música.")
@@ -804,6 +841,8 @@ class MusicViewModel(
                 val updated = repository.relinkSong(context, song.id, uri)
                 playerEngine.updateSongMetadata(updated)
                 setScanStatusMessage("Arquivo de \"${song.title}\" atualizado.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("MusicViewModel", "Error relinking audio ${song.id}", e)
                 setScanStatusMessage(e.message ?: "Não foi possível atualizar o arquivo de áudio.")
@@ -903,9 +942,9 @@ class MusicViewModel(
     fun selectEqualizerPreset(preset: EqualizerPreset) {
         val updated = _equalizerState.value.copy(
             currentPresetId = preset.id,
-            bandLevels = preset.bandLevels,
-            bassBoost = preset.bassBoost,
-            virtualizer = preset.virtualizer
+            bandLevels = preset.bandLevels.map { it.coerceIn(-10, 10) },
+            bassBoost = preset.bassBoost.coerceIn(0, 100),
+            virtualizer = preset.virtualizer.coerceIn(0, 100)
         )
         _equalizerState.value = updated
         playerEngine.syncEqualizer(updated)
@@ -915,7 +954,7 @@ class MusicViewModel(
     fun setBandLevel(bandIndex: Int, level: Int) {
         val currentBands = _equalizerState.value.bandLevels.toMutableList()
         if (bandIndex in currentBands.indices) {
-            currentBands[bandIndex] = level
+            currentBands[bandIndex] = level.coerceIn(-10, 10)
             val updated = _equalizerState.value.copy(
                 bandLevels = currentBands,
                 currentPresetId = "custom_user"
@@ -931,28 +970,30 @@ class MusicViewModel(
     }
 
     fun resetEqualizer() {
-        val resetState = EqualizerState()
+        val resetState = EqualizerState(
+            customPresets = _equalizerState.value.customPresets
+        )
         _equalizerState.value = resetState
         playerEngine.syncEqualizer(resetState)
         persistUserSettings()
     }
 
     fun setBassBoost(value: Int) {
-        val updated = _equalizerState.value.copy(bassBoost = value)
+        val updated = _equalizerState.value.copy(bassBoost = value.coerceIn(0, 100))
         _equalizerState.value = updated
         playerEngine.syncEqualizer(updated)
         persistUserSettings()
     }
 
     fun setVirtualizer(value: Int) {
-        val updated = _equalizerState.value.copy(virtualizer = value)
+        val updated = _equalizerState.value.copy(virtualizer = value.coerceIn(0, 100))
         _equalizerState.value = updated
         playerEngine.syncEqualizer(updated)
         persistUserSettings()
     }
 
     fun setBalance(value: Float) {
-        val updated = _equalizerState.value.copy(balance = value)
+        val updated = _equalizerState.value.copy(balance = value.coerceIn(-1f, 1f))
         _equalizerState.value = updated
         playerEngine.syncEqualizer(updated)
         persistUserSettings()
@@ -960,17 +1001,19 @@ class MusicViewModel(
 
     fun saveCustomEqualizerPreset(name: String) {
         viewModelScope.launch {
+            val cleanName = name.trim().take(100)
+            if (cleanName.isBlank()) return@launch
             val currentEq = _equalizerState.value
             val bands = currentEq.bandLevels
             val entity = com.example.data.model.CustomPresetEntity(
-                name = name,
-                band0 = bands.getOrElse(0) { 0 },
-                band1 = bands.getOrElse(1) { 0 },
-                band2 = bands.getOrElse(2) { 0 },
-                band3 = bands.getOrElse(3) { 0 },
-                band4 = bands.getOrElse(4) { 0 },
-                bassBoost = currentEq.bassBoost,
-                virtualizer = currentEq.virtualizer
+                name = cleanName,
+                band0 = bands.getOrElse(0) { 0 }.coerceIn(-10, 10),
+                band1 = bands.getOrElse(1) { 0 }.coerceIn(-10, 10),
+                band2 = bands.getOrElse(2) { 0 }.coerceIn(-10, 10),
+                band3 = bands.getOrElse(3) { 0 }.coerceIn(-10, 10),
+                band4 = bands.getOrElse(4) { 0 }.coerceIn(-10, 10),
+                bassBoost = currentEq.bassBoost.coerceIn(0, 100),
+                virtualizer = currentEq.virtualizer.coerceIn(0, 100)
             )
             repository.saveCustomPreset(entity)
         }
@@ -1062,8 +1105,14 @@ class MusicViewModel(
     // Playlists Operations
     fun createPlaylist(name: String, description: String = "", iconName: String = "playlist_play", gradientIndex: Int = 0) {
         viewModelScope.launch {
-            if (name.isNotBlank()) {
-                repository.createPlaylist(name.trim(), description.trim(), iconName, gradientIndex)
+            val cleanName = name.trim().take(100)
+            if (cleanName.isNotBlank()) {
+                repository.createPlaylist(
+                    cleanName,
+                    description.trim().take(5000),
+                    iconName.trim().take(100),
+                    gradientIndex.coerceIn(0, 5)
+                )
             }
         }
     }
@@ -1197,6 +1246,8 @@ class MusicViewModel(
                 }
                 val lyrics = loadLyrics(song)
                 _currentLyrics.value = lyrics
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("MusicViewModel", "Error refreshing lyrics", e)
             } finally {
@@ -1243,6 +1294,8 @@ class MusicViewModel(
                 lastFmDataStore.saveAuthToken(token)
                 _lastFmAuthUrl.value = LastFmClient.authorizationUrl(settings.apiKey, token)
                 setLastFmMessage("Abra a página de autorização e depois conclua o login.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 setLastFmMessage("Não foi possível obter o token: ${e.message ?: "erro desconhecido"}")
             }
@@ -1261,6 +1314,8 @@ class MusicViewModel(
                 lastFmDataStore.saveSession(session.username, session.sessionKey)
                 _lastFmAuthUrl.value = null
                 setLastFmMessage("Last.fm conectado como ${session.username}.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 setLastFmMessage("Não foi possível concluir o login: ${e.message ?: "erro desconhecido"}")
             }
@@ -1317,6 +1372,8 @@ class MusicViewModel(
                     }
                 }
                 setScanStatusMessage("Backup salvo com sucesso.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 setScanStatusMessage("Falha no backup: ${e.message ?: "arquivo inválido"}")
             }
@@ -1337,6 +1394,8 @@ class MusicViewModel(
                 }
                 if (songs.isNotEmpty()) playerEngine.setQueue(songs, startIndex = 0, autoPlay = false)
                 setScanStatusMessage("Backup restaurado: ${songs.size} música(s).")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 setScanStatusMessage("Falha na restauração: ${e.message ?: "arquivo inválido"}")
             }

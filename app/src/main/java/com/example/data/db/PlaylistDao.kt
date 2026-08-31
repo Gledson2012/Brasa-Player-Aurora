@@ -23,6 +23,12 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlist_songs ORDER BY playlistId ASC, orderIndex ASC")
     suspend fun getAllCrossRefsOnce(): List<PlaylistSongCrossRef>
 
+    @Query("SELECT * FROM playlist_songs ORDER BY playlistId ASC, orderIndex ASC")
+    fun observeAllCrossRefs(): Flow<List<PlaylistSongCrossRef>>
+
+    @Query("SELECT * FROM playlist_songs WHERE playlistId = :playlistId ORDER BY orderIndex ASC")
+    fun observeCrossRefsForPlaylist(playlistId: Long): Flow<List<PlaylistSongCrossRef>>
+
     @Transaction
     @Query("SELECT * FROM playlists WHERE id = :playlistId")
     fun getPlaylistWithSongs(playlistId: Long): Flow<PlaylistWithSongs?>

@@ -80,15 +80,27 @@ fun MiniPlayerBar(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
                 .shadow(8.dp, RoundedCornerShape(18.dp))
-                .testTag("mini_player_bar")
-                .clickable { context.hapticTick(); onBarClick() },
+            .testTag("mini_player_bar")
+            .clickable { context.hapticTick(); onBarClick() },
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.98f)
+                containerColor = Color.Transparent
             ),
             border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.98f),
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.46f),
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.98f)
+                            )
+                        )
+                    )
+            ) {
                 // Gradient Progress Indicator
                 Box(
                     modifier = Modifier

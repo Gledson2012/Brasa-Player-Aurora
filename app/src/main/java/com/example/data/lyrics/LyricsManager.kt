@@ -2,9 +2,12 @@ package com.example.data.lyrics
 
 import android.util.Log
 import com.example.data.model.Song
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.IOException
+import java.io.Reader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -25,6 +28,7 @@ data class TrackLyrics(
 
 object LyricsManager {
 
+    private const val MAX_NETWORK_RESPONSE_CHARS = 1_000_000
     private val lyricsCache = ConcurrentHashMap<Long, TrackLyrics>()
 
     fun cache(songId: Long, lyrics: TrackLyrics) {
@@ -49,6 +53,7 @@ object LyricsManager {
     fun parseLrc(songId: Long, lrcContent: String, source: String = "LRC"): TrackLyrics {
         val lines = mutableListOf<LyricLine>()
         val rawLines = lrcContent.lines()
+        var hasAnyTimestamp = false
 
         val timePattern = Pattern.compile("""\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?]""")
 
@@ -63,6 +68,7 @@ object LyricsManager {
 
             while (matcher.find(lastEnd)) {
                 hasTimestamp = true
+                hasAnyTimestamp = true
                 val minutes = matcher.group(1)?.toLongOrNull() ?: 0L
                 val seconds = matcher.group(2)?.toLongOrNull() ?: 0L
                 val fractionStr = matcher.group(3) ?: "0"
@@ -89,7 +95,7 @@ object LyricsManager {
         }
 
         val sortedLines = lines.sortedBy { it.timestampMs }
-        val isSynced = sortedLines.any { it.timestampMs > 0L }
+        val isSynced = hasAnyTimestamp
         return TrackLyrics(songId, sortedLines, isSynced, source)
     }
 
@@ -115,6 +121,8 @@ object LyricsManager {
                 lyricsCache[song.id] = parsed
                 return@withContext parsed
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w("LyricsManager", "Failed to fetch online lyrics for ${song.title}: ${e.message}")
         }
@@ -142,7 +150,9 @@ object LyricsManager {
 
         return try {
             if (connection.responseCode == 200) {
-                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                val responseText = connection.inputStream.bufferedReader().use {
+                    it.readTextLimited(MAX_NETWORK_RESPONSE_CHARS)
+                }
                 val json = JSONObject(responseText)
                 if (json.has("syncedLyrics") && !json.isNull("syncedLyrics")) {
                     val synced = json.getString("syncedLyrics")
@@ -156,6 +166,20 @@ object LyricsManager {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun Reader.readTextLimited(maxChars: Int): String {
+        val result = StringBuilder()
+        val buffer = CharArray(8192)
+        while (true) {
+            val read = read(buffer)
+            if (read < 0) break
+            if (result.length + read > maxChars) {
+                throw IOException("Resposta de letras excedeu o limite permitido.")
+            }
+            result.append(buffer, 0, read)
+        }
+        return result.toString()
     }
 
     private fun getBuiltInLrc(song: Song): String? {

@@ -4,9 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.util.Log
 import android.util.LruCache
+import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -100,9 +100,9 @@ class CoverArtCache(private val context: Context) {
      * Extract embedded artwork from an audio file.
      */
     private fun extractEmbeddedArt(uri: String): Bitmap? {
+        val retriever = MediaMetadataRetriever()
         return try {
-            MediaMetadataRetriever().use { retriever ->
-                retriever.setDataSource(context, Uri.parse(uri))
+                retriever.setDataSource(context, uri.toUri())
                 val artBytes = retriever.embeddedPicture ?: return null
 
                 // Decode and resize to thumbnail
@@ -130,10 +130,11 @@ class CoverArtCache(private val context: Context) {
                 } else {
                     bitmap
                 }
-            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract embedded art from $uri", e)
             null
+        } finally {
+            retriever.release()
         }
     }
 

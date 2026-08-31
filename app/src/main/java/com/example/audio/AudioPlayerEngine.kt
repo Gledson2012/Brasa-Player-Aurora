@@ -3,6 +3,7 @@ package com.example.audio
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -12,6 +13,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import com.example.data.model.EqualizerState
@@ -33,6 +35,7 @@ enum class RepeatMode {
     ONE
 }
 
+@OptIn(UnstableApi::class)
 class AudioPlayerEngine(
     private val context: Context
 ) {
@@ -151,6 +154,36 @@ class AudioPlayerEngine(
                     Player.STATE_BUFFERING -> {}
                     Player.STATE_IDLE -> {}
                 }
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (isUsingSynth) return
+
+                // ExoPlayer can advance the playlist before STATE_ENDED. In
+                // repeat-one mode, restart the current item immediately so a
+                // gapless playlist cannot skip the requested repeat policy.
+                if (
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO &&
+                    _repeatMode.value == RepeatMode.ONE
+                ) {
+                    _currentSong.value?.let { playSong(it) }
+                    return
+                }
+
+                val songId = mediaItem?.mediaId?.toLongOrNull() ?: return
+                val song = _queue.value.firstOrNull { it.id == songId }
+                    ?: librarySongs.firstOrNull { it.id == songId }
+                    ?: return
+
+                // A real-audio queue is also loaded into ExoPlayer for gapless
+                // playback. Keep the app state in sync when ExoPlayer advances
+                // on its own at the end of a media item.
+                if (_currentSong.value?.id == song.id) return
+                _currentSong.value = song
+                _durationMs.value = song.durationMs
+                _currentPositionMs.value = 0L
+                _playbackError.value = null
+                onSongChangedCallback?.invoke(song)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -328,16 +361,18 @@ class AudioPlayerEngine(
     }
 
     fun setQueue(songs: List<Song>, startIndex: Int = 0, autoPlay: Boolean = true) {
-        _queue.value = songs
-        if (songs.isNotEmpty() && startIndex in songs.indices) {
-            val song = songs[startIndex]
-            // Use gapless playback for queues of real audio files
-            val hasRealAudio = songs.any { !it.mediaUri.isNullOrBlank() }
-            val currentSongIsSynth = song.mediaUri.isNullOrBlank()
+        val newQueue = songs.toList()
+        _queue.value = newQueue
+        if (newQueue.isNotEmpty() && startIndex in newQueue.indices) {
+            val song = newQueue[startIndex]
+            // ExoPlayer can only play a gapless queue when every item has a
+            // real URI. Mixed queues must be handled one item at a time so a
+            // synthetic bundled track never reaches Uri.EMPTY in ExoPlayer.
+            val allSongsHaveAudio = newQueue.all { !it.mediaUri.isNullOrBlank() }
 
-            if (hasRealAudio && !currentSongIsSynth && autoPlay) {
+            if (allSongsHaveAudio && autoPlay) {
                 // Gapless playback: load all real audio items into ExoPlayer's playlist
-                playQueueGapless(songs, startIndex)
+                playQueueGapless(newQueue, startIndex)
             } else if (autoPlay) {
                 playSong(song)
             } else {
@@ -747,7 +782,7 @@ class AudioPlayerEngine(
 
         val nextSong = q[nextIndex]
         // If ExoPlayer is in gapless mode and next song is real audio, let it handle transition
-        if (!isUsingSynth && !nextSong.mediaUri.isNullOrBlank() && exoPlayer != null) {
+        if (!_isShuffle.value && !isUsingSynth && !nextSong.mediaUri.isNullOrBlank() && exoPlayer != null) {
             // Check if next item is already in ExoPlayer's playlist
             val player = exoPlayer!!
             if (player.mediaItemCount > 1) {
@@ -755,9 +790,6 @@ class AudioPlayerEngine(
                 val currentExoIndex = player.currentMediaItemIndex
                 if (currentExoIndex < player.mediaItemCount - 1) {
                     player.seekToNextMediaItem()
-                    _currentSong.value = nextSong
-                    _durationMs.value = nextSong.durationMs
-                    onSongChangedCallback?.invoke(nextSong)
                     return
                 }
             }
@@ -785,15 +817,12 @@ class AudioPlayerEngine(
         val prevSong = q[prevIndex]
 
         // If ExoPlayer is in gapless mode and previous song is real audio, let it handle transition
-        if (!isUsingSynth && !prevSong.mediaUri.isNullOrBlank() && exoPlayer != null) {
+        if (!_isShuffle.value && !isUsingSynth && !prevSong.mediaUri.isNullOrBlank() && exoPlayer != null) {
             val player = exoPlayer!!
             if (player.mediaItemCount > 1) {
                 val currentExoIndex = player.currentMediaItemIndex
                 if (currentExoIndex > 0) {
                     player.seekToPreviousMediaItem()
-                    _currentSong.value = prevSong
-                    _durationMs.value = prevSong.durationMs
-                    onSongChangedCallback?.invoke(prevSong)
                     return
                 }
             }
@@ -919,7 +948,10 @@ class AudioPlayerEngine(
 
     fun setShuffleMode(enabled: Boolean) {
         _isShuffle.value = enabled
-        exoPlayer?.shuffleModeEnabled = enabled
+        // Queue navigation, including shuffle selection, is owned by this
+        // engine. ExoPlayer's independent shuffle order could select a
+        // different item than the one represented by _queue.
+        exoPlayer?.shuffleModeEnabled = false
     }
 
     fun toggleShuffle() {
@@ -927,11 +959,12 @@ class AudioPlayerEngine(
     }
 
     fun setPlaybackSpeed(speed: Float) {
-        _playbackSpeed.value = speed
+        val safeSpeed = speed.coerceIn(0.5f, 2.0f)
+        _playbackSpeed.value = safeSpeed
         if (isUsingSynth) {
-            synthGenerator.setSpeed(speed)
+            synthGenerator.setSpeed(safeSpeed)
         } else {
-            exoPlayer?.playbackParameters = PlaybackParameters(speed)
+            exoPlayer?.playbackParameters = PlaybackParameters(safeSpeed)
         }
     }
 

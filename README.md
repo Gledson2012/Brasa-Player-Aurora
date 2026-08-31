@@ -1,4 +1,4 @@
-# Music Player
+# Brasa Player Aurora
 
 Player Android offline com Jetpack Compose, Media3 e Room.
 

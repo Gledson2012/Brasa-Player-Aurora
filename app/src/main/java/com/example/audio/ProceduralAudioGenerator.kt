@@ -3,6 +3,7 @@ package com.example.audio
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,6 +21,10 @@ import kotlin.math.tanh
  * for demo and built-in offline music library. Produces pleasant chords, basslines, and melodies.
  */
 class ProceduralAudioGenerator {
+    private companion object {
+        const val TAG = "ProceduralAudioGenerator"
+    }
+
     private var audioTrack: AudioTrack? = null
     private var playbackJob: Job? = null
     private val sampleRate = 44100
@@ -56,15 +61,16 @@ class ProceduralAudioGenerator {
     ) {
         stop()
         currentPreset = preset
-        trackDurationMs = durationMs
-        currentPositionMs = startPositionMs
+        trackDurationMs = durationMs.coerceAtLeast(0L)
+        currentPositionMs = startPositionMs.coerceIn(0L, trackDurationMs)
         isPlaying = true
 
-        val bufferSize = AudioTrack.getMinBufferSize(
+        val minimumBufferSize = AudioTrack.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_OUT_STEREO,
             AudioFormat.ENCODING_PCM_16BIT
-        ) * 2
+        )
+        val bufferSize = if (minimumBufferSize > 0) minimumBufferSize * 2 else 0
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -78,16 +84,20 @@ class ProceduralAudioGenerator {
             .build()
 
         try {
-            audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(audioAttributes)
-                .setAudioFormat(audioFormat)
-                .setBufferSizeInBytes(bufferSize)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .build()
+            if (bufferSize > 0) {
+                audioTrack = AudioTrack.Builder()
+                    .setAudioAttributes(audioAttributes)
+                    .setAudioFormat(audioFormat)
+                    .setBufferSizeInBytes(bufferSize)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
 
-            audioTrack?.play()
+                audioTrack?.play()
+                applyPlaybackRate()
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "AudioTrack indisponível; usando temporizador silencioso", e)
+            audioTrack = null
             // Fallback simulated timer if AudioTrack fails on container
         }
 
@@ -114,13 +124,13 @@ class ProceduralAudioGenerator {
                 )
 
                 // Write to AudioTrack
-                audioTrack?.let { track ->
+                val audioWasWritten = audioTrack?.let { track ->
                     try {
-                        track.write(audioBuffer, 0, audioBuffer.size)
+                        track.write(audioBuffer, 0, audioBuffer.size, AudioTrack.WRITE_BLOCKING) == audioBuffer.size
                     } catch (e: Exception) {
-                        // ignore write error
+                        false
                     }
-                }
+                } ?: false
 
                 val chunkDurationMs = (samplesPerChunk * 1000L / sampleRate)
                 currentPositionMs += (chunkDurationMs * playbackSpeed).toLong()
@@ -133,8 +143,11 @@ class ProceduralAudioGenerator {
                     onProgress(currentPositionMs.coerceAtMost(trackDurationMs), trackDurationMs)
                 }
 
-                // Small yield to match real-time clock
-                delay((chunkDurationMs.toFloat() / (2f * playbackSpeed)).coerceAtLeast(10f).toLong())
+                // A blocking AudioTrack write already paces playback. When
+                // audio output is unavailable, pace the fallback timer here.
+                if (!audioWasWritten) {
+                    delay((chunkDurationMs.toFloat() / playbackSpeed).coerceAtLeast(10f).toLong())
+                }
             }
         }
     }
@@ -261,6 +274,13 @@ class ProceduralAudioGenerator {
 
     fun setSpeed(speed: Float) {
         playbackSpeed = speed.coerceIn(0.5f, 2.0f)
+        applyPlaybackRate()
+    }
+
+    private fun applyPlaybackRate() {
+        runCatching {
+            audioTrack?.playbackRate = (sampleRate * playbackSpeed).toInt()
+        }
     }
 
     fun stop() {

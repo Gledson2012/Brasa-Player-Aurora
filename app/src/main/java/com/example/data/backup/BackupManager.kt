@@ -27,6 +27,13 @@ class BackupManager(
     private companion object {
         const val MAX_SONGS = 100_000
         const val MAX_PLAYLISTS = 10_000
+        const val MAX_CROSS_REFS = 500_000
+        const val MAX_CUSTOM_PRESETS = 10_000
+        const val MAX_LYRICS = MAX_SONGS
+        const val MAX_METADATA_LENGTH = 1_000
+        const val MAX_PLAYLIST_DESCRIPTION_LENGTH = 5_000
+        const val MAX_URI_LENGTH = 4_096
+        const val MAX_LYRICS_LENGTH = 1_000_000
     }
 
     suspend fun export(context: Context, uri: Uri, onProgress: ((String) -> Unit)? = null) {
@@ -267,8 +274,34 @@ class BackupManager(
     private fun validateSnapshot(snapshot: MusicRepository.BackupSnapshot) {
         require(snapshot.songs.size <= MAX_SONGS) { "Backup excede o limite de músicas permitido." }
         require(snapshot.playlists.size <= MAX_PLAYLISTS) { "Backup excede o limite de playlists permitido." }
-        require(snapshot.songs.all { it.title.length <= 1_000 && it.artist.length <= 1_000 }) {
+        require(snapshot.crossRefs.size <= MAX_CROSS_REFS) {
+            "Backup excede o limite de músicas em playlists permitido."
+        }
+        require(snapshot.customPresets.size <= MAX_CUSTOM_PRESETS) {
+            "Backup excede o limite de presets permitido."
+        }
+        require(snapshot.lyrics.size <= MAX_LYRICS) {
+            "Backup excede o limite de letras permitido."
+        }
+        require(snapshot.songs.all {
+            validText(it.title, MAX_METADATA_LENGTH) &&
+                validText(it.artist, MAX_METADATA_LENGTH) &&
+                validText(it.album, MAX_METADATA_LENGTH) &&
+                validText(it.genre, MAX_METADATA_LENGTH) &&
+                it.mediaUri.length <= MAX_URI_LENGTH &&
+                (it.sourceKey == null || it.sourceKey.length <= MAX_URI_LENGTH) &&
+                (it.coverUri == null || it.coverUri.length <= MAX_URI_LENGTH) &&
+                (it.synthPreset == null || validText(it.synthPreset, MAX_METADATA_LENGTH))
+        }) {
             "Backup contém metadados de música inválidos."
+        }
+        require(snapshot.playlists.all {
+            validText(it.name, MAX_METADATA_LENGTH) &&
+                validText(it.description, MAX_PLAYLIST_DESCRIPTION_LENGTH) &&
+                it.gradientIndex >= 0 &&
+                validText(it.iconName, MAX_METADATA_LENGTH)
+        }) {
+            "Backup contém dados de playlist inválidos."
         }
         val songIds = snapshot.songs.map { it.id }
         val playlistIds = snapshot.playlists.map { it.id }
@@ -282,10 +315,20 @@ class BackupManager(
         require(sourceKeys.all { it.isNotBlank() } && sourceKeys.toSet().size == sourceKeys.size) {
             "Backup contém fontes de áudio duplicadas ou inválidas."
         }
-        require(snapshot.songs.all { it.durationMs >= 0L && it.playCount >= 0 }) {
+        require(snapshot.songs.all {
+            it.durationMs >= 0L &&
+                it.playCount >= 0 &&
+                it.lastPlayedTimestamp >= 0L &&
+                it.addedTimestamp >= 0L
+        }) {
             "Backup contém valores de reprodução inválidos."
         }
-        require(snapshot.crossRefs.all { it.playlistId in playlistIds && it.songId in songIds }) {
+        require(snapshot.crossRefs.all {
+            it.playlistId in playlistIds &&
+                it.songId in songIds &&
+                it.orderIndex >= 0 &&
+                it.addedAt >= 0L
+        }) {
             "Backup contém referências de playlist inválidas."
         }
         require(snapshot.crossRefs.map { it.playlistId to it.songId }.toSet().size == snapshot.crossRefs.size) {
@@ -297,7 +340,36 @@ class BackupManager(
         require(snapshot.lyrics.map { it.songId }.toSet().size == snapshot.lyrics.size) {
             "Backup contém letras duplicadas para a mesma música."
         }
+        require(snapshot.lyrics.all {
+            validText(it.content, MAX_LYRICS_LENGTH) && validText(it.source, MAX_METADATA_LENGTH)
+        }) {
+            "Backup contém letras inválidas."
+        }
+        val presetIds = snapshot.customPresets.map { it.id }
+        require(snapshot.customPresets.all {
+            it.id > 0L && validText(it.name, MAX_METADATA_LENGTH) &&
+                it.band0 in -10..10 && it.band1 in -10..10 &&
+                it.band2 in -10..10 && it.band3 in -10..10 && it.band4 in -10..10 &&
+                it.bassBoost in 0..100 && it.virtualizer in 0..100
+        } && presetIds.toSet().size == presetIds.size) {
+            "Backup contém presets de equalizador inválidos."
+        }
+        snapshot.userSettings?.let { settings ->
+            require(
+                settings.id == 1 &&
+                settings.currentPresetId.isNotBlank() &&
+                    settings.band0 in -10..10 && settings.band1 in -10..10 &&
+                    settings.band2 in -10..10 && settings.band3 in -10..10 && settings.band4 in -10..10 &&
+                    settings.bassBoost in 0..100 && settings.virtualizer in 0..100 &&
+                    settings.balance in -1f..1f && settings.playbackSpeed in 0.5f..2.0f &&
+                    settings.crossfadeSeconds in 0..12 &&
+                    settings.repeatMode in setOf("OFF", "ALL", "ONE")
+            ) { "Backup contém preferências de reprodução inválidas." }
+        }
     }
+
+    private fun validText(value: String, maxLength: Int): Boolean =
+        value.length <= maxLength && value.none { it == '\u0000' }
 
     private inline fun <reified T> enumOrDefault(value: String, default: T): T where T : Enum<T> =
         try { enumValueOf(value) } catch (_: Exception) { default }

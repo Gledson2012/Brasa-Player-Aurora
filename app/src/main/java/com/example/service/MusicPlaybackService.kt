@@ -19,6 +19,7 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionError
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.example.MainActivity
@@ -120,7 +121,12 @@ class MusicPlaybackService : MediaLibraryService() {
             },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return Notification.Builder(this, CHANNEL_ID)
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            Notification.Builder(this)
+        }
+        return builder
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.playback_notification_idle_text))
             .setSmallIcon(R.drawable.ic_music_note)
@@ -231,6 +237,7 @@ class MusicPlaybackService : MediaLibraryService() {
             )
             .build()
 
+    @OptIn(UnstableApi::class)
     private inner class MediaLibraryCallback(
         private val engine: AudioPlayerEngine
     ) : MediaLibraryService.MediaLibrarySession.Callback {
@@ -303,7 +310,7 @@ class MusicPlaybackService : MediaLibraryService() {
             return if (item != null) {
                 Futures.immediateFuture(LibraryResult.ofItem(item, null))
             } else {
-                Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
+                Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE))
             }
         }
 

@@ -61,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -101,6 +102,15 @@ fun EqualizerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
             .testTag("equalizer_screen")
@@ -111,7 +121,7 @@ fun EqualizerScreen(
             icon = Icons.Default.GraphicEq
         )
 
-        // Header Master Switch Card
+        // Processing status and protection grouped into one control panel
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
@@ -121,85 +131,84 @@ fun EqualizerScreen(
             ),
             border = if (equalizerState.isEnabled) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) else null
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    colors = if (equalizerState.isEnabled) listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
-                                    else listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = null,
-                            tint = if (equalizerState.isEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = if (equalizerState.isEnabled) listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                                        else listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.GraphicEq,
+                                contentDescription = null,
+                                tint = if (equalizerState.isEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column {
+                            Text(
+                                text = "Processamento de áudio",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (equalizerState.isEnabled) "Efeitos DSP em tempo real" else "Desativado (som original)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    Column {
-                        Text(
-                            text = "Processamento de áudio",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (equalizerState.isEnabled) "Efeitos DSP em tempo real" else "Desativado (som original)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Switch(
+                        checked = equalizerState.isEnabled,
+                        onCheckedChange = { context.hapticTick(); onToggleEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        modifier = Modifier.testTag("equalizer_switch")
+                    )
                 }
 
-                Switch(
-                    checked = equalizerState.isEnabled,
-                    onCheckedChange = { context.hapticTick(); onToggleEnabled(it) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    modifier = Modifier.testTag("equalizer_switch")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
                 )
-            }
-        }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth().testTag("clipping_protection_card"),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-            )
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.GraphicEq,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("clipping_protection_card")
+                        .padding(horizontal = 18.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Proteção contra distorção",
                         style = MaterialTheme.typography.labelLarge,
@@ -210,13 +219,14 @@ fun EqualizerScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    }
+                    Text(
+                        text = "ATIVO",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
-                Text(
-                    text = "ATIVO",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
             }
         }
 
@@ -544,154 +554,75 @@ fun EqualizerScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Sound FX Cards (Bass Boost, Virtualizer, Balance)
+        // Sound effects grouped in one panel to keep the tuning flow compact.
         Text(
-            text = "Efeitos Sonoros & Imersão",
+            text = "Efeitos e imersão",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Ajustes extras para dar mais corpo e espaço ao áudio",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Bass Boost Slider
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
             border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Reforço de Graves (Bass Boost)",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Text(
-                        text = "${equalizerState.bassBoost}%",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                Slider(
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                EffectSliderRow(
+                    icon = Icons.AutoMirrored.Filled.VolumeUp,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = "Reforço de graves",
+                    valueLabel = "${equalizerState.bassBoost}%",
                     value = equalizerState.bassBoost.toFloat(),
+                    valueRange = 0f..100f,
                     onValueChange = { onBassBoostChange(it.toInt()) },
-                    valueRange = 0f..100f,
                     enabled = equalizerState.isEnabled,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.testTag("bass_boost_slider")
+                    testTag = "bass_boost_slider"
                 )
-            }
-        }
 
-        Spacer(modifier = Modifier.height(10.dp))
+                EffectDivider()
 
-        // 3D Virtualizer Slider
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.SurroundSound,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Surround 3D (Virtualizer)",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Text(
-                        text = "${equalizerState.virtualizer}%",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                }
-
-                Slider(
+                EffectSliderRow(
+                    icon = Icons.Default.SurroundSound,
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    title = "Surround 3D",
+                    valueLabel = "${equalizerState.virtualizer}%",
                     value = equalizerState.virtualizer.toFloat(),
-                    onValueChange = { onVirtualizerChange(it.toInt()) },
                     valueRange = 0f..100f,
+                    onValueChange = { onVirtualizerChange(it.toInt()) },
                     enabled = equalizerState.isEnabled,
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.secondary,
-                        activeTrackColor = MaterialTheme.colorScheme.secondary
-                    ),
-                    modifier = Modifier.testTag("virtualizer_slider")
+                    testTag = "virtualizer_slider"
                 )
-            }
-        }
 
-        Spacer(modifier = Modifier.height(10.dp))
+                EffectDivider()
 
-        // Balance Slider
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Balanço de Canal (E / D)",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = when {
-                            equalizerState.balance < -0.1f -> "E (${(kotlin.math.abs(equalizerState.balance) * 100).toInt()}%)"
-                            equalizerState.balance > 0.1f -> "D (${(equalizerState.balance * 100).toInt()}%)"
-                            else -> "Centro"
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                Slider(
+                EffectSliderRow(
+                    icon = Icons.Default.Equalizer,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = "Balanço de canal",
+                    valueLabel = when {
+                        equalizerState.balance < -0.1f -> "E (${(kotlin.math.abs(equalizerState.balance) * 100).toInt()}%)"
+                        equalizerState.balance > 0.1f -> "D (${(equalizerState.balance * 100).toInt()}%)"
+                        else -> "Centro"
+                    },
                     value = equalizerState.balance,
+                    valueRange = -1f..1f,
                     onValueChange = onBalanceChange,
-                    valueRange = -1.0f..1.0f,
                     enabled = equalizerState.isEnabled,
-                    modifier = Modifier.testTag("balance_slider")
+                    testTag = "balance_slider"
                 )
-
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 30.dp, end = 2.dp, bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Esquerda", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -730,4 +661,80 @@ fun EqualizerScreen(
             }
         )
     }
+}
+
+@Composable
+private fun EffectSliderRow(
+    icon: ImageVector,
+    iconTint: Color,
+    title: String,
+    valueLabel: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    enabled: Boolean,
+    testTag: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 9.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconTint.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(9.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = valueLabel,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = iconTint
+            )
+        }
+
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            enabled = enabled,
+            colors = SliderDefaults.colors(
+                thumbColor = iconTint,
+                activeTrackColor = iconTint,
+                inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
+            ),
+            modifier = Modifier.testTag(testTag)
+        )
+    }
+}
+
+@Composable
+private fun EffectDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 39.dp)
+            .height(1.dp)
+            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+    )
 }

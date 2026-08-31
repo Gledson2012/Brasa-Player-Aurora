@@ -214,6 +214,15 @@ fun ThemesScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
             .testTag("themes_screen")

@@ -9,6 +9,7 @@ import com.example.data.db.ScrobbleDao
 import com.example.data.model.PendingScrobbleEntity
 import com.example.data.model.Song
 import com.example.service.ScrobbleWorker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
@@ -67,6 +68,8 @@ class ScrobbleQueueManager(
                 client.scrobble(song, timestampSeconds)
                 Log.d(TAG, "Successfully scrobbled immediately: ${song.artist} - ${song.title}")
                 return
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Immediate scrobble failed, queuing for later", e)
             }
@@ -96,6 +99,8 @@ class ScrobbleQueueManager(
         try {
             val client = LastFmClient(settings)
             client.updateNowPlaying(song)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to update now playing", e)
         }

@@ -21,8 +21,10 @@ import com.example.data.model.PlaylistSongCrossRef
 import com.example.data.model.PlaylistWithSongs
 import com.example.data.model.Song
 import com.example.data.model.UserSettingsEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 
 class MusicRepository(
@@ -37,7 +39,21 @@ class MusicRepository(
     val recentlyPlayed: Flow<List<Song>> = songDao.getRecentlyPlayedSongs()
     val mostPlayed: Flow<List<Song>> = songDao.getMostPlayedSongs()
     val allPlaylists: Flow<List<Playlist>> = playlistDao.getAllPlaylists()
-    val allPlaylistsWithSongs: Flow<List<PlaylistWithSongs>> = playlistDao.getAllPlaylistsWithSongs()
+    val allPlaylistsWithSongs: Flow<List<PlaylistWithSongs>> = combine(
+        allPlaylists,
+        allSongs,
+        playlistDao.observeAllCrossRefs()
+    ) { playlists, songs, crossRefs ->
+        val songsById = songs.associateBy { it.id }
+        val refsByPlaylist = crossRefs.groupBy { it.playlistId }
+        playlists.map { playlist ->
+            val orderedSongs = refsByPlaylist[playlist.id]
+                .orEmpty()
+                .sortedWith(compareBy<PlaylistSongCrossRef> { it.orderIndex }.thenBy { it.addedAt })
+                .mapNotNull { songsById[it.songId] }
+            PlaylistWithSongs(playlist, orderedSongs)
+        }
+    }
     val userSettings: Flow<UserSettingsEntity?> = userSettingsDao.getUserSettings()
     val customPresets: Flow<List<CustomPresetEntity>> = userSettingsDao.getAllCustomPresets()
 
@@ -105,7 +121,10 @@ class MusicRepository(
             if (snapshot.crossRefs.isNotEmpty()) {
                 playlistDao.restoreCrossRefs(snapshot.crossRefs)
             }
-            snapshot.userSettings?.let { userSettingsDao.saveUserSettings(it) }
+            // Older backups may not contain settings. Keep the singleton row
+            // present so later UPDATE queries (playback position/equalizer)
+            // are not silently applied to zero rows.
+            userSettingsDao.saveUserSettings(snapshot.userSettings ?: UserSettingsEntity())
             if (snapshot.customPresets.isNotEmpty()) {
                 userSettingsDao.restoreCustomPresets(snapshot.customPresets)
             }
@@ -116,8 +135,19 @@ class MusicRepository(
         snapshot.songs
     }
 
-    fun getPlaylistWithSongs(playlistId: Long): Flow<PlaylistWithSongs?> =
-        playlistDao.getPlaylistWithSongs(playlistId)
+    fun getPlaylistWithSongs(playlistId: Long): Flow<PlaylistWithSongs?> = combine(
+        playlistDao.getPlaylistWithSongs(playlistId),
+        playlistDao.observeCrossRefsForPlaylist(playlistId)
+    ) { playlistWithSongs, crossRefs ->
+        playlistWithSongs?.let { relation ->
+            val songsById = relation.songs.associateBy { it.id }
+            relation.copy(
+                songs = crossRefs
+                    .sortedWith(compareBy<PlaylistSongCrossRef> { it.orderIndex }.thenBy { it.addedAt })
+                    .mapNotNull { songsById[it.songId] }
+            )
+        }
+    }
 
     fun searchSongs(query: String): Flow<List<Song>> =
         songDao.searchSongs(query)
@@ -176,11 +206,13 @@ class MusicRepository(
     }
 
     suspend fun createPlaylist(name: String, description: String = "", iconName: String = "queue_music", gradientIndex: Int = 0): Long {
+        val cleanName = name.trim().take(1_000)
+        if (cleanName.isBlank()) return -1L
         val playlist = Playlist(
-            name = name,
-            description = description,
-            gradientIndex = gradientIndex,
-            iconName = iconName
+            name = cleanName,
+            description = description.trim().take(5_000),
+            gradientIndex = gradientIndex.coerceIn(0, 5),
+            iconName = iconName.trim().take(100).ifBlank { "queue_music" }
         )
         return playlistDao.insertPlaylist(playlist)
     }
@@ -282,6 +314,8 @@ class MusicRepository(
                     songDao.markSourcesAvailable(scannedSourceKeys)
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("MusicRepository", "Error scanning device audio", e)
             throw IllegalStateException("Não foi possível escanear as músicas do dispositivo.", e)
@@ -291,7 +325,16 @@ class MusicRepository(
 
     suspend fun importAudioUri(context: Context, uri: Uri, title: String, artist: String = "Importado"): Long {
         val sourceKey = uri.toString()
-        songDao.getSongBySourceKey(sourceKey)?.let { return it.id }
+        songDao.getSongBySourceKey(sourceKey)?.let { existing ->
+            // Re-importing the same document is also how a user repairs a
+            // previously revoked URI permission. Verify access and mark the
+            // row available again without discarding edited metadata.
+            ensureReadable(context, uri)
+            if (!existing.isAvailable) {
+                songDao.updateSong(existing.copy(isAvailable = true))
+            }
+            return existing.id
+        }
 
         ensureReadable(context, uri)
         val metadata = readAudioMetadata(context, uri)
@@ -307,7 +350,14 @@ class MusicRepository(
             coverDrawableName = "cover_synthwave",
             genre = "Arquivo de Áudio"
         )
-        return songDao.insertSong(song)
+        return try {
+            songDao.insertSong(song)
+        } catch (e: Exception) {
+            // Two picker callbacks can arrive close together. The unique
+            // sourceKey index is the source of truth; return the row created
+            // by the competing insert instead of reporting a false failure.
+            songDao.getSongBySourceKey(sourceKey)?.id ?: throw e
+        }
     }
 
     private data class AudioMetadata(
@@ -318,8 +368,8 @@ class MusicRepository(
     )
 
     private fun readAudioMetadata(context: Context, uri: Uri): AudioMetadata {
+        val retriever = MediaMetadataRetriever()
         return try {
-            MediaMetadataRetriever().use { retriever ->
                 retriever.setDataSource(context, uri)
                 val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 AudioMetadata(
@@ -328,10 +378,11 @@ class MusicRepository(
                     album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM),
                     durationMs = durationStr?.toLongOrNull() ?: 0L
                 )
-            }
         } catch (e: Exception) {
             Log.w("MusicRepository", "Could not read audio metadata for $uri", e)
             AudioMetadata()
+        } finally {
+            retriever.release()
         }
     }
 

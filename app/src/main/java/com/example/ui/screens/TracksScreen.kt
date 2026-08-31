@@ -1,10 +1,12 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
@@ -103,7 +106,6 @@ fun TracksScreen(
     onRelinkSong: (Song) -> Unit,
     onDeleteSong: (Song) -> Unit
 ) {
-    var showSortMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(TrackFilter.ALL) }
     val visibleSongs by remember(songs, selectedFilter) {
         derivedStateOf {
@@ -129,6 +131,15 @@ fun TracksScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
             .padding(horizontal = 16.dp)
             .testTag("tracks_screen")
     ) {
@@ -137,6 +148,15 @@ fun TracksScreen(
             subtitle = "Encontre sua próxima faixa em segundos",
             icon = Icons.Default.MusicNote
         )
+
+        LibraryOverviewCard(
+            totalSongs = songs.size,
+            availableSongs = songs.count(Song::isAvailable),
+            currentSort = currentSort,
+            onOpenFiles = onOpenFiles
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Search Bar
         OutlinedTextField(
@@ -175,132 +195,17 @@ fun TracksScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedButton(
-            onClick = onOpenFiles,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("open_device_files_button"),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.FileOpen,
-                contentDescription = null,
-                modifier = Modifier.size(19.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Abrir arquivos do celular")
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        LazyRow(
-            modifier = Modifier.fillMaxWidth().testTag("track_filters"),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(TrackFilter.values().toList()) { filter ->
-                val count = songCounts.getValue(filter)
-                FilterChip(
-                    selected = selectedFilter == filter,
-                    onClick = { selectedFilter = filter },
-                    label = { Text("${filter.label} $count") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Actions Header (Play All, Shuffle, Sort)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { onPlayAll(visibleSongs) },
-                    enabled = visibleSongs.isNotEmpty(),
-                    modifier = Modifier.testTag("play_all_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Tocar Tudo")
-                }
-
-                FilledTonalButton(
-                    onClick = { onShuffleAll(visibleSongs) },
-                    enabled = visibleSongs.isNotEmpty(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Aleatório")
-                }
-            }
-
-            // Sort Dropdown
-            Box {
-                IconButton(onClick = { showSortMenu = true }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Sort,
-                        contentDescription = "Ordenar lista",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = showSortMenu,
-                    onDismissRequest = { showSortMenu = false }
-                ) {
-                    SortOption.values().forEach { option ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = option.title,
-                                    fontWeight = if (currentSort == option) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (currentSort == option) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                            },
-                            onClick = {
-                                showSortMenu = false
-                                onSortChange(option)
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Tracks Count or Search Filter Info
-        if (searchQuery.isNotBlank() || selectedFilter != TrackFilter.ALL) {
-            Text(
-                text = "${visibleSongs.size} ${if (visibleSongs.size == 1) "música" else "músicas"} exibida(s)",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-        } else {
-            Text(
-                text = "${visibleSongs.size} ${if (visibleSongs.size == 1) "música na biblioteca" else "músicas na biblioteca"}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        LibraryControlsCard(
+            selectedFilter = selectedFilter,
+            songCounts = songCounts,
+            visibleSongs = visibleSongs,
+            searchQuery = searchQuery,
+            currentSort = currentSort,
+            onSelectFilter = { selectedFilter = it },
+            onPlayAll = { onPlayAll(visibleSongs) },
+            onShuffleAll = { onShuffleAll(visibleSongs) },
+            onSortChange = onSortChange
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -397,37 +302,45 @@ fun TrackListItem(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)
         ),
-        border = if (isCurrent) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) else null
+        border = BorderStroke(
+            1.dp,
+            if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.36f)
+            else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 2.dp else 0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Cover thumbnail with playing indicator
             Box(contentAlignment = Alignment.Center) {
                 SongCoverArt(
                     song = song,
-                    modifier = Modifier.size(46.dp),
-                    cornerRadius = 10.dp
+                    modifier = Modifier.size(54.dp),
+                    cornerRadius = 14.dp
                 )
 
-                if (isCurrent && isPlaying) {
+                if (isCurrent) {
                     Box(
                         modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.Black.copy(alpha = 0.4f)),
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (isPlaying) Color.Black.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow,
+                            imageVector = if (isPlaying) Icons.Default.GraphicEq else Icons.Default.PlayArrow,
                             contentDescription = "Tocando",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -539,6 +452,236 @@ fun TrackListItem(
                         }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryControlsCard(
+    selectedFilter: TrackFilter,
+    songCounts: Map<TrackFilter, Int>,
+    visibleSongs: List<Song>,
+    searchQuery: String,
+    currentSort: SortOption,
+    onSelectFilter: (TrackFilter) -> Unit,
+    onPlayAll: () -> Unit,
+    onShuffleAll: () -> Unit,
+    onSortChange: (SortOption) -> Unit
+) {
+    var showSortMenu by remember { mutableStateOf(false) }
+    val resultLabel = if (searchQuery.isNotBlank() || selectedFilter != TrackFilter.ALL) {
+        "${visibleSongs.size} ${if (visibleSongs.size == 1) "faixa encontrada" else "faixas encontradas"}"
+    } else {
+        "Tudo em um só lugar"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.56f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Organizar biblioteca",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = resultLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (searchQuery.isNotBlank() || selectedFilter != TrackFilter.ALL) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+                Box {
+                    IconButton(
+                        onClick = { showSortMenu = true },
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Sort,
+                            contentDescription = "Ordenar lista",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false }
+                    ) {
+                        SortOption.values().forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = option.title,
+                                        fontWeight = if (currentSort == option) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (currentSort == option) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    showSortMenu = false
+                                    onSortChange(option)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.26f))
+                    .padding(horizontal = 4.dp, vertical = 3.dp)
+                    .testTag("track_filters"),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(TrackFilter.values().toList()) { filter ->
+                    FilterChip(
+                        selected = selectedFilter == filter,
+                        onClick = { onSelectFilter(filter) },
+                        label = { Text("${filter.label} ${songCounts.getValue(filter)}") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onPlayAll,
+                    enabled = visibleSongs.isNotEmpty(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("play_all_button"),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text("Tocar tudo")
+                }
+
+                FilledTonalButton(
+                    onClick = onShuffleAll,
+                    enabled = visibleSongs.isNotEmpty(),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text("Aleatório")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryOverviewCard(
+    totalSongs: Int,
+    availableSongs: Int,
+    currentSort: SortOption,
+    onOpenFiles: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f)
+                        )
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SUA BIBLIOTECA",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.1.sp
+                    )
+                    Text(
+                        text = if (totalSongs == 1) "1 faixa" else "$totalSongs faixas",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "$availableSongs disponíveis • ${currentSort.title}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onOpenFiles,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_device_files_button"),
+                contentPadding = PaddingValues(vertical = 10.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Abrir arquivos do celular")
             }
         }
     }

@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.IOException
+import java.io.Reader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -16,6 +17,7 @@ data class LastFmSession(val username: String, val sessionKey: String)
 class LastFmClient(private val settings: LastFmSettings) {
     companion object {
         private const val API_URL = "https://ws.audioscrobbler.com/2.0/"
+        private const val MAX_RESPONSE_CHARS = 256_000
 
         fun authorizationUrl(apiKey: String, token: String): String =
             "https://www.last.fm/api/auth/?api_key=${encode(apiKey)}&token=${encode(token)}"
@@ -87,16 +89,33 @@ class LastFmClient(private val settings: LastFmSettings) {
 
         return try {
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val responseCode = connection.responseCode
+            val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use {
+                it.readTextLimited(MAX_RESPONSE_CHARS)
+            }.orEmpty()
             val json = JSONObject(response.ifBlank { "{}" })
-            if (connection.responseCode !in 200..299 || json.has("error")) {
-                throw IOException(json.optString("message", "Erro HTTP ${connection.responseCode}"))
+            if (responseCode !in 200..299 || json.has("error")) {
+                throw IOException(json.optString("message", "Erro HTTP $responseCode"))
             }
             json
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun Reader.readTextLimited(maxChars: Int): String {
+        val result = StringBuilder()
+        val buffer = CharArray(8192)
+        while (true) {
+            val read = read(buffer)
+            if (read < 0) break
+            if (result.length + read > maxChars) {
+                throw IOException("Resposta do Last.fm excedeu o limite permitido.")
+            }
+            result.append(buffer, 0, read)
+        }
+        return result.toString()
     }
 
     private fun md5(value: String): String = MessageDigest.getInstance("MD5")

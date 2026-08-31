@@ -23,10 +23,11 @@ class EqualizerEngine {
     fun getOutputGain(): Float = outputGain
 
     fun bindAudioSession(sessionId: Int, proceduralAudioGenerator: ProceduralAudioGenerator?) {
-        if (sessionId == 0 || sessionId == currentSessionId) return
-        currentSessionId = sessionId
+        if (sessionId == 0) return
+        if (sessionId == currentSessionId && (equalizer != null || bassBoost != null || virtualizer != null)) return
 
         release()
+        currentSessionId = sessionId
 
         try {
             equalizer = Equalizer(0, sessionId).apply {
@@ -62,16 +63,22 @@ class EqualizerEngine {
     }
 
     fun applyState(state: EqualizerState, proceduralAudioGenerator: ProceduralAudioGenerator?) {
-        currentState = state
-        outputGain = calculateOutputGain(state)
+        val safeState = state.copy(
+            bandLevels = state.bandLevels.map { it.coerceIn(-10, 10) },
+            bassBoost = state.bassBoost.coerceIn(0, 100),
+            virtualizer = state.virtualizer.coerceIn(0, 100),
+            balance = state.balance.coerceIn(-1f, 1f)
+        )
+        currentState = safeState
+        outputGain = calculateOutputGain(safeState)
 
         // Apply to hardware effects if attached
         try {
-            equalizer?.enabled = state.isEnabled
-            bassBoost?.enabled = state.isEnabled
-            virtualizer?.enabled = state.isEnabled
+            equalizer?.enabled = safeState.isEnabled
+            bassBoost?.enabled = safeState.isEnabled
+            virtualizer?.enabled = safeState.isEnabled
 
-            if (state.isEnabled) {
+            if (safeState.isEnabled) {
                 equalizer?.let { eq ->
                     val numBands = eq.numberOfBands.toInt()
                     val minLevel = eq.bandLevelRange[0]
@@ -85,12 +92,11 @@ class EqualizerEngine {
                     }
                     val targetFrequenciesHz = intArrayOf(60, 230, 910, 3600, 14000)
                     targetFrequenciesHz.forEachIndexed { targetIndex, targetHz ->
-                        if (targetIndex >= state.bandLevels.size || numBands == 0) return@forEachIndexed
+                        if (targetIndex >= safeState.bandLevels.size || numBands == 0) return@forEachIndexed
                         val closestBand = (0 until numBands).minByOrNull { band ->
                             kotlin.math.abs((eq.getCenterFreq(band.toShort()) / 1000) - targetHz)
                         } ?: return@forEachIndexed
-                        val milliBels = (state.bandLevels[targetIndex] * 1000)
-                            .toShort()
+                        val milliBels = (safeState.bandLevels[targetIndex] * 1000).toShort()
                             .coerceIn(minLevel, maxLevel)
                         eq.setBandLevel(closestBand.toShort(), milliBels)
                     }
@@ -98,13 +104,13 @@ class EqualizerEngine {
 
                 bassBoost?.let { bb ->
                     if (bb.strengthSupported) {
-                        bb.setStrength((state.bassBoost * 10).toShort().coerceIn(0, 1000))
+                        bb.setStrength((safeState.bassBoost * 10).toShort().coerceIn(0, 1000))
                     }
                 }
 
                 virtualizer?.let { virt ->
                     if (virt.strengthSupported) {
-                        virt.setStrength((state.virtualizer * 10).toShort().coerceIn(0, 1000))
+                        virt.setStrength((safeState.virtualizer * 10).toShort().coerceIn(0, 1000))
                     }
                 }
             }
@@ -115,10 +121,14 @@ class EqualizerEngine {
         // Apply to procedural synthesizer for offline synth tracks
         proceduralAudioGenerator?.let { synth ->
             for (i in 0 until 5) {
-                synth.bandGains[i] = if (state.isEnabled && i < state.bandLevels.size) state.bandLevels[i].toFloat() else 0f
+                synth.bandGains[i] = if (safeState.isEnabled && i < safeState.bandLevels.size) {
+                    safeState.bandLevels[i].toFloat()
+                } else {
+                    0f
+                }
             }
-            synth.bassBoostAmount = if (state.isEnabled) state.bassBoost / 100f else 0f
-            synth.balanceGain = state.balance
+            synth.bassBoostAmount = if (safeState.isEnabled) safeState.bassBoost / 100f else 0f
+            synth.balanceGain = safeState.balance
             synth.setMasterVolume(outputGain)
         }
     }
@@ -143,5 +153,6 @@ class EqualizerEngine {
         equalizer = null
         bassBoost = null
         virtualizer = null
+        currentSessionId = 0
     }
 }

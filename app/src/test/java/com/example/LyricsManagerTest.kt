@@ -32,4 +32,11 @@ class LyricsManagerTest {
 
         assertEquals("[01:02.34] Teste", LyricsManager.toLrc(lyrics))
     }
+
+    @Test
+    fun `zero timestamp still marks lyrics as synchronized`() {
+        val lyrics = LyricsManager.parseLrc(1L, "[00:00.00] Começo")
+
+        assertTrue(lyrics.isSynced)
+    }
 }

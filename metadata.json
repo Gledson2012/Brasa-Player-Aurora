@@ -1,6 +1,0 @@
-{
-  "name": "Music Player",
-  "description": "Player de música offline com equalizador profissional, playlists personalizadas e temas customizáveis.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

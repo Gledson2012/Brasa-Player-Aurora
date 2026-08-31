@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,6 +23,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Favorite
@@ -63,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import com.example.data.model.Playlist
 import com.example.data.model.PlaylistWithSongs
 import com.example.data.model.Song
@@ -154,12 +158,25 @@ fun PlaylistsScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize()
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.07f),
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.background
+                            )
+                        )
+                    )
+            ) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp)
                         .testTag("playlists_screen"),
+                    contentPadding = PaddingValues(top = 10.dp, bottom = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                 item {
@@ -199,122 +216,153 @@ fun PlaylistsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Create Playlist Button Card
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { context.hapticTick(); onCreatePlaylistClick() }
-                            .testTag("create_playlist_button"),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                    ) {
-                        Row(
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .clickable { context.hapticTick(); onCreatePlaylistClick() }
+                                .testTag("create_playlist_button"),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                         ) {
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth()
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primaryContainer,
+                                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f)
+                                            )
+                                        )
+                                    )
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(
+                                                    MaterialTheme.colorScheme.primary,
+                                                    MaterialTheme.colorScheme.secondary
+                                                )
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Criar nova playlist",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        text = "Organize suas faixas em coleções",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    )
+                                }
                                 Icon(
-                                    imageVector = Icons.Default.Add,
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(14.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Criar Nova Playlist",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "Organize suas faixas favoritas em coleções",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
-                    }
                 }
 
                 item {
-                    // Smart Playlists Section
-                    Text(
-                        text = "Coleções Inteligentes",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Coleções inteligentes",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "automáticas",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        SmartPlaylistCard(
-                            title = "Favoritas",
-                            songCount = favoriteSongs.size,
-                            icon = Icons.Default.Favorite,
-                            gradient = listOf(Color(0xFFFF007F), Color(0xFFFF5252)),
-                            modifier = Modifier.weight(1f),
-                            testTag = "smart_playlist_favorites",
-                            onClick = {
-                                context.hapticTick()
-                                val dummyPlaylist = PlaylistWithSongs(
-                                    playlist = Playlist(id = 0, name = "Músicas Favoritas", description = "Suas músicas curtidas com coração", gradientIndex = 1),
-                                    songs = favoriteSongs
-                                )
-                                onOpenPlaylistDetail(dummyPlaylist)
-                            }
-                        )
-
-                        SmartPlaylistCard(
-                            title = "Recentes",
-                            songCount = recentlyPlayed.size,
-                            icon = Icons.Default.History,
-                            gradient = listOf(Color(0xFF2979FF), Color(0xFF00E5FF)),
-                            modifier = Modifier.weight(1f),
-                            testTag = "smart_playlist_recent",
-                            onClick = {
-                                context.hapticTick()
-                                val dummyPlaylist = PlaylistWithSongs(
-                                    playlist = Playlist(id = -1, name = "Tocadas Recentemente", description = "Histórico de faixas reproduzidas", gradientIndex = 4),
-                                    songs = recentlyPlayed
-                                )
-                                onOpenPlaylistDetail(dummyPlaylist)
-                            }
-                        )
-
-                        SmartPlaylistCard(
-                            title = "Mais Tocadas",
-                            songCount = mostPlayed.size,
-                            icon = Icons.Default.LocalFireDepartment,
-                            gradient = listOf(Color(0xFFFF6B35), Color(0xFFFFD166)),
-                            modifier = Modifier.weight(1f),
-                            testTag = "smart_playlist_most_played",
-                            onClick = {
-                                context.hapticTick()
-                                val dummyPlaylist = PlaylistWithSongs(
-                                    playlist = Playlist(id = -2, name = "Mais Tocadas", description = "Suas músicas mais escutadas", gradientIndex = 2),
-                                    songs = mostPlayed
-                                )
-                                onOpenPlaylistDetail(dummyPlaylist)
-                            }
-                        )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        item {
+                            SmartPlaylistCard(
+                                title = "Favoritas",
+                                songCount = favoriteSongs.size,
+                                icon = Icons.Default.Favorite,
+                                gradient = listOf(Color(0xFFFF007F), Color(0xFFFF5252)),
+                                modifier = Modifier.width(148.dp),
+                                testTag = "smart_playlist_favorites",
+                                onClick = {
+                                    context.hapticTick()
+                                    val dummyPlaylist = PlaylistWithSongs(
+                                        playlist = Playlist(id = 0, name = "Músicas Favoritas", description = "Suas músicas curtidas com coração", gradientIndex = 1),
+                                        songs = favoriteSongs
+                                    )
+                                    onOpenPlaylistDetail(dummyPlaylist)
+                                }
+                            )
+                        }
+                        item {
+                            SmartPlaylistCard(
+                                title = "Recentes",
+                                songCount = recentlyPlayed.size,
+                                icon = Icons.Default.History,
+                                gradient = listOf(Color(0xFF2979FF), Color(0xFF00E5FF)),
+                                modifier = Modifier.width(148.dp),
+                                testTag = "smart_playlist_recent",
+                                onClick = {
+                                    context.hapticTick()
+                                    val dummyPlaylist = PlaylistWithSongs(
+                                        playlist = Playlist(id = -1, name = "Tocadas Recentemente", description = "Histórico de faixas reproduzidas", gradientIndex = 4),
+                                        songs = recentlyPlayed
+                                    )
+                                    onOpenPlaylistDetail(dummyPlaylist)
+                                }
+                            )
+                        }
+                        item {
+                            SmartPlaylistCard(
+                                title = "Mais Tocadas",
+                                songCount = mostPlayed.size,
+                                icon = Icons.Default.LocalFireDepartment,
+                                gradient = listOf(Color(0xFFFF6B35), Color(0xFFFFD166)),
+                                modifier = Modifier.width(148.dp),
+                                testTag = "smart_playlist_most_played",
+                                onClick = {
+                                    context.hapticTick()
+                                    val dummyPlaylist = PlaylistWithSongs(
+                                        playlist = Playlist(id = -2, name = "Mais Tocadas", description = "Suas músicas mais escutadas", gradientIndex = 2),
+                                        songs = mostPlayed
+                                    )
+                                    onOpenPlaylistDetail(dummyPlaylist)
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -325,10 +373,16 @@ fun PlaylistsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Playlists Personalizadas (${visiblePlaylists.size})",
+                            text = "Suas playlists",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "${visiblePlaylists.size} ${if (visiblePlaylists.size == 1) "coleção" else "coleções"}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -400,29 +454,33 @@ fun PlaylistsScreen(
                                 .fillMaxWidth()
                                 .clickable { context.hapticTick(); onOpenPlaylistDetail(item) }
                                 .testTag("playlist_item_${item.playlist.id}"),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(18.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                             )
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(16.dp))
                                         .background(Brush.linearGradient(gradientColors)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                                         contentDescription = null,
                                         tint = Color.White,
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(26.dp)
                                     )
                                 }
 
@@ -437,21 +495,29 @@ fun PlaylistsScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = if (item.playlist.description.isNotBlank()) item.playlist.description
-                                        else "${item.songs.size} ${if (item.songs.size == 1) "música" else "músicas"}${if (totalDurationMs > 0) " • ${formatPlaylistDuration(totalDurationMs)}" else ""}",
+                                        text = if (item.playlist.description.isNotBlank()) item.playlist.description else "Sem descrição",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${item.songs.size} ${if (item.songs.size == 1) "faixa" else "faixas"}${if (totalDurationMs > 0) " • ${formatPlaylistDuration(totalDurationMs)}" else ""}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
 
                                 // Delete Playlist Button
                                 IconButton(
                                     onClick = { context.hapticTick(); playlistToDelete = item.playlist },
-                                    modifier = Modifier.testTag("delete_playlist_btn_${item.playlist.id}")
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
+                                        .testTag("delete_playlist_btn_${item.playlist.id}")
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.DeleteOutline,
@@ -486,24 +552,27 @@ fun SmartPlaylistCard(
 ) {
     Card(
         modifier = modifier
+            .height(132.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .testTag(testTag),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .background(Brush.linearGradient(gradient))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.Start
         ) {
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Brush.linearGradient(gradient)),
+                    .background(Color.White.copy(alpha = 0.18f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -514,21 +583,21 @@ fun SmartPlaylistCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
-            )
-
-            Text(
-                text = "$songCount faixas",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$songCount ${if (songCount == 1) "faixa" else "faixas"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.82f)
+                )
+            }
         }
     }
 }
@@ -908,5 +977,5 @@ fun formatPlaylistTime(ms: Long): String {
     val totalSeconds = (ms / 1000).coerceAtLeast(0)
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return String.format("%d:%02d", minutes, seconds)
+    return String.format(Locale.ROOT, "%d:%02d", minutes, seconds)
 }
