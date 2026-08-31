@@ -23,17 +23,20 @@ import androidx.core.net.toUri
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
@@ -55,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
@@ -79,6 +83,7 @@ import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PlaylistsScreen
 import com.example.ui.screens.ThemesScreen
 import com.example.ui.screens.TracksScreen
+import com.example.ui.screens.TuneInScreen
 import com.example.ui.theme.MusicPlayerTheme
 import com.example.ui.viewmodel.MusicViewModel
 import com.example.ui.viewmodel.MusicUiState
@@ -171,6 +176,20 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     val lastFmAuthUrl = uiState.lastFmAuthUrl
     val playbackError = uiState.playbackError
     val snackbarHostState = remember { SnackbarHostState() }
+    val openTuneInLink: (String) -> Unit = { url ->
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+        }
+    }
+    val playTuneInStation: (String, String, String, String?, String?) -> Unit = { title, category, coverUri, tuneInId, fallbackStreamUrl ->
+        viewModel.playRadio(
+            title = title,
+            category = category,
+            coverUri = coverUri,
+            tuneInId = tuneInId,
+            fallbackStreamUrl = fallbackStreamUrl
+        )
+    }
 
     LaunchedEffect(currentSong?.id, isPlaying) {
         if (
@@ -245,6 +264,18 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
         }
         viewModel.importAudioFiles(context, uris)
     }
+    val audioFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+        viewModel.importAudioFolder(context, uri)
+    }
 
     AnimatedContent(
         targetState = onboardingCompleted,
@@ -300,15 +331,24 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
 
                     // Navigation Bar
                     NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-                        tonalElevation = 2.dp,
-                        modifier = Modifier.testTag("main_bottom_nav")
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                        tonalElevation = 8.dp,
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            .testTag("main_bottom_nav")
                     ) {
                         NavigationBarItem(
                             selected = selectedTab == 0,
                             onClick = { viewModel.selectTab(0) },
                             icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "Início") },
                             label = { Text("Início", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                            alwaysShowLabel = false,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -323,6 +363,7 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                             onClick = { viewModel.selectTab(1) },
                             icon = { Icon(imageVector = Icons.Default.MusicNote, contentDescription = "Músicas") },
                             label = { Text("Músicas", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                            alwaysShowLabel = false,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -337,6 +378,7 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                             onClick = { viewModel.selectTab(2) },
                             icon = { Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "Playlists") },
                             label = { Text("Playlists", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                            alwaysShowLabel = false,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -351,6 +393,7 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                             onClick = { viewModel.selectTab(3) },
                             icon = { Icon(imageVector = Icons.Default.GraphicEq, contentDescription = "Equalizador") },
                             label = { Text("Equalizador", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) },
+                            alwaysShowLabel = false,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -365,6 +408,22 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                             onClick = { viewModel.selectTab(4) },
                             icon = { Icon(imageVector = Icons.Default.Palette, contentDescription = "Temas") },
                             label = { Text("Temas", fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Normal) },
+                            alwaysShowLabel = false,
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+
+                        NavigationBarItem(
+                            selected = selectedTab == 5,
+                            onClick = { viewModel.selectTab(5) },
+                            icon = { Icon(imageVector = Icons.Default.Radio, contentDescription = "Rádio") },
+                            label = { Text("Rádio", fontWeight = if (selectedTab == 5) FontWeight.Bold else FontWeight.Normal) },
+                            alwaysShowLabel = false,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -497,9 +556,15 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                             }
                         },
                         onImportAudioFile = { context, uri, name -> viewModel.importSingleAudio(context, uri, name) },
+                        onImportAudioFolder = { context -> audioFolderLauncher.launch(null) },
                         onOpenLastFm = { viewModel.showLastFmDialog() },
                         onBackup = { backupLauncher.launch("music-player-backup.json") },
                         onRestore = { showRestoreConfirmation = true }
+                    )
+
+                    5 -> TuneInScreen(
+                        onOpenLink = openTuneInLink,
+                        onPlayStation = playTuneInStation
                     )
                 }
                 } // AnimatedContent

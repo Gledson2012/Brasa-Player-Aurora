@@ -35,6 +35,7 @@ import com.example.data.model.ThemeMode
 import com.example.data.model.UserSettingsEntity
 import com.example.data.model.VisualizerStyle
 import com.example.data.repository.MusicRepository
+import com.example.data.tunein.TuneInStreamResolver
 import com.example.service.MusicPlaybackService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -479,6 +480,7 @@ class MusicViewModel(
     // Coalesced playback-position persistence: avoids racing writes and redundant DB hits.
     private var persistJob: Job? = null
     private var settingsPersistJob: Job? = null
+    private var radioPlaybackJob: Job? = null
     private var lastPersistedSongId: Long? = null
     private var lastPersistedPositionMs: Long = Long.MIN_VALUE
 
@@ -492,17 +494,19 @@ class MusicViewModel(
 
         playerEngine.setOnSongChangedListener { song ->
             lastFmScrobbledSongId = null
-            viewModelScope.launch(Dispatchers.IO) {
-                repository.recordSongPlayed(song.id)
-                repository.updateLastPlayedState(song.id, currentPositionMs.value)
-                val settings = lastFmSettings.value
-                if (settings.enabled && settings.isAuthenticated) {
-                    try {
-                        scrobbleQueueManager.updateNowPlaying(song)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        // Playback must not depend on Last.fm availability.
+            if (!isRadioSong(song)) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    repository.recordSongPlayed(song.id)
+                    repository.updateLastPlayedState(song.id, currentPositionMs.value)
+                    val settings = lastFmSettings.value
+                    if (settings.enabled && settings.isAuthenticated) {
+                        try {
+                            scrobbleQueueManager.updateNowPlaying(song)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            // Playback must not depend on Last.fm availability.
+                        }
                     }
                 }
             }
@@ -523,7 +527,7 @@ class MusicViewModel(
         // Observe current song and fetch synchronized lyrics
         viewModelScope.launch {
             currentSong.collectLatest { song ->
-                if (song != null) {
+                if (song != null && !isRadioSong(song)) {
                     _isLyricsLoading.value = true
                     _currentLyrics.value = null
                     try {
@@ -549,6 +553,7 @@ class MusicViewModel(
                 ScrobbleState(song, position, duration, settings)
             }.collect { state ->
                 val song = state.song ?: return@collect
+                if (isRadioSong(song)) return@collect
                 val settings = state.settings
                 val threshold = minOf(state.durationMs / 2L, 240_000L)
                 if (
@@ -650,7 +655,7 @@ class MusicViewModel(
     }
 
     fun selectTab(index: Int) {
-        _selectedTab.value = index.coerceIn(0, 4)
+        _selectedTab.value = index.coerceIn(0, 5)
     }
 
     fun openFullPlayer() {
@@ -772,7 +777,9 @@ class MusicViewModel(
                 crossfadeSeconds = crossfadeSeconds.value,
                 repeatMode = repeatMode.value.name,
                 isShuffle = isShuffle.value,
-                lastPlayedSongId = currentSong.value?.id,
+                lastPlayedSongId = currentSong.value
+                    ?.takeUnless(::isRadioSong)
+                    ?.id,
                 lastPlaybackPositionMs = currentPositionMs.value
             )
             repository.saveUserSettings(entity)
@@ -794,6 +801,58 @@ class MusicViewModel(
         } else {
             playerEngine.playSong(song)
         }
+    }
+
+    /** Resolves and plays a TuneIn station through the same internal player. */
+    fun playRadio(
+        title: String,
+        category: String,
+        coverUri: String,
+        tuneInId: String?,
+        fallbackStreamUrl: String? = null
+    ) {
+        radioPlaybackJob?.cancel()
+        radioPlaybackJob = viewModelScope.launch {
+            setScanStatusMessage("Conectando a $title…")
+            val resolvedTuneInStream = tuneInId
+                ?.takeIf { it.isNotBlank() }
+                ?.let { TuneInStreamResolver.resolve(it) }
+            val streamUrl = resolvedTuneInStream
+                ?: fallbackStreamUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            if (streamUrl.isNullOrBlank()) {
+                setScanStatusMessage("A estação \"$title\" não está disponível para reprodução agora.")
+                delay(3500)
+                setScanStatusMessage(null)
+                return@launch
+            }
+
+            ensurePlaybackService()
+            val stationKey = tuneInId ?: fallbackStreamUrl ?: title
+            val radioSong = Song(
+                id = radioSongId(stationKey),
+                title = title,
+                artist = "TuneIn • $category",
+                album = "Rádio ao vivo",
+                durationMs = 0L,
+                mediaUri = streamUrl,
+                coverUri = coverUri,
+                genre = category,
+                sourceKey = "radio:$stationKey",
+                isAvailable = true
+            )
+            playerEngine.setQueue(listOf(radioSong), startIndex = 0, autoPlay = true)
+            _isFullPlayerOpen.value = true
+            setScanStatusMessage(null)
+        }
+    }
+
+    private fun isRadioSong(song: Song): Boolean = song.sourceKey?.startsWith("radio:") == true
+
+    private fun radioSongId(tuneInId: String): Long {
+        val numericId = tuneInId.filter { it.isDigit() }.toLongOrNull()
+        val stableId = numericId?.coerceAtLeast(1L)
+            ?: kotlin.math.abs(tuneInId.hashCode().toLong()).coerceAtLeast(1L)
+        return -stableId
     }
 
     fun updateSongMetadata(
@@ -922,6 +981,7 @@ class MusicViewModel(
     }
 
     fun toggleFavorite(song: Song) {
+        if (isRadioSong(song)) return
         viewModelScope.launch {
             repository.toggleFavorite(song)
         }
@@ -1228,6 +1288,30 @@ class MusicViewModel(
         }
     }
 
+    fun importAudioFolder(context: Context, folderUri: Uri) {
+        viewModelScope.launch {
+            setScanStatusMessage("Lendo a pasta selecionada e suas subpastas...")
+            try {
+                val result = repository.importAudioFolder(context, folderUri)
+                setScanStatusMessage(
+                    when {
+                        result.discovered == 0 -> "Nenhum arquivo de áudio encontrado nessa pasta."
+                        result.failed == 0 -> "${result.imported} música(s) adicionada(s) à biblioteca."
+                        result.imported == 0 -> "Encontramos ${result.discovered} arquivo(s), mas não foi possível importar nenhum."
+                        else -> "${result.imported} música(s) adicionada(s); ${result.failed} arquivo(s) não puderam ser lidos."
+                    }
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("MusicViewModel", "Error importing audio folder $folderUri", e)
+                setScanStatusMessage(e.message ?: "Falha ao importar a pasta de músicas.")
+            }
+            delay(3500)
+            setScanStatusMessage(null)
+        }
+    }
+
     // Lyrics Controls
     fun toggleLyricsView() {
         _isLyricsViewActive.value = !_isLyricsViewActive.value
@@ -1235,6 +1319,7 @@ class MusicViewModel(
 
     fun refreshLyrics() {
         val song = currentSong.value ?: return
+        if (isRadioSong(song)) return
         viewModelScope.launch {
             _isLyricsLoading.value = true
             try {
@@ -1267,6 +1352,7 @@ class MusicViewModel(
 
     fun saveLyrics(rawLrc: String) {
         val song = currentSong.value ?: return
+        if (isRadioSong(song)) return
         viewModelScope.launch {
             if (rawLrc.isBlank()) {
                 repository.deleteLyrics(song.id)
@@ -1406,11 +1492,13 @@ class MusicViewModel(
 
     private suspend fun persistPlaybackPosition() {
         val song = currentSong.value ?: return
+        if (isRadioSong(song)) return
         repository.updateLastPlayedState(song.id, currentPositionMs.value)
     }
 
     private fun schedulePersistPlaybackPosition() {
         val song = currentSong.value ?: return
+        if (isRadioSong(song)) return
         val position = currentPositionMs.value
         viewModelScope.launch {
             repository.updateLastPlayedState(song.id, position)
@@ -1455,6 +1543,7 @@ class MusicViewModel(
         playerEngine.setOnFavoriteToggleListener(null)
         settingsPersistJob?.cancel()
         persistJob?.cancel()
+        radioPlaybackJob?.cancel()
         super.onCleared()
     }
 

@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.media.MediaMetadataRetriever
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.net.toUri
@@ -358,6 +359,105 @@ class MusicRepository(
             // by the competing insert instead of reporting a false failure.
             songDao.getSongBySourceKey(sourceKey)?.id ?: throw e
         }
+    }
+
+    data class FolderImportResult(
+        val discovered: Int,
+        val imported: Int,
+        val failed: Int
+    )
+
+    /** Imports audio files from a selected folder, including its subfolders. */
+    suspend fun importAudioFolder(context: Context, treeUri: Uri): FolderImportResult = withContext(Dispatchers.IO) {
+        val audioFiles = mutableListOf<Pair<Uri, String>>()
+        val visitedDocuments = mutableSetOf<String>()
+        val treeDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+
+        collectAudioDocuments(
+            context = context,
+            treeUri = treeUri,
+            parentDocumentId = treeDocumentId,
+            audioFiles = audioFiles,
+            visitedDocuments = visitedDocuments
+        )
+
+        var importedCount = 0
+        var failedCount = 0
+        audioFiles.forEach { (uri, displayName) ->
+            try {
+                importAudioUri(
+                    context = context,
+                    uri = uri,
+                    title = displayName.substringBeforeLast('.', displayName)
+                )
+                importedCount++
+            } catch (e: Exception) {
+                failedCount++
+                Log.w("MusicRepository", "Could not import audio from folder: $uri", e)
+            }
+        }
+
+        FolderImportResult(
+            discovered = audioFiles.size,
+            imported = importedCount,
+            failed = failedCount
+        )
+    }
+
+    private fun collectAudioDocuments(
+        context: Context,
+        treeUri: Uri,
+        parentDocumentId: String,
+        audioFiles: MutableList<Pair<Uri, String>>,
+        visitedDocuments: MutableSet<String>
+    ) {
+        if (!visitedDocuments.add(parentDocumentId)) return
+
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            parentDocumentId
+        )
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        )
+
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            if (idColumn < 0 || nameColumn < 0 || mimeColumn < 0) return@use
+
+            while (cursor.moveToNext()) {
+                val documentId = cursor.getString(idColumn) ?: continue
+                val displayName = cursor.getString(nameColumn).orEmpty()
+                val mimeType = cursor.getString(mimeColumn).orEmpty()
+
+                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    collectAudioDocuments(
+                        context = context,
+                        treeUri = treeUri,
+                        parentDocumentId = documentId,
+                        audioFiles = audioFiles,
+                        visitedDocuments = visitedDocuments
+                    )
+                } else if (isAudioDocument(mimeType, displayName)) {
+                    val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
+                    audioFiles += documentUri to displayName
+                }
+            }
+        }
+    }
+
+    private fun isAudioDocument(mimeType: String, displayName: String): Boolean {
+        if (mimeType.startsWith("audio/", ignoreCase = true)) return true
+
+        // Some file providers expose audio files as application/octet-stream.
+        val extension = displayName.substringAfterLast('.', "").lowercase()
+        return extension in setOf(
+            "mp3", "m4a", "m4b", "aac", "flac", "wav", "ogg", "oga", "opus", "wma", "ape", "alac"
+        )
     }
 
     private data class AudioMetadata(

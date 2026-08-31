@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
@@ -73,6 +74,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AlbumArtStyle
@@ -157,6 +159,7 @@ fun ThemesScreen(
     onResetDefaults: () -> Unit,
     onScanLocalStorage: (Context) -> Unit,
     onImportAudioFile: (Context, android.net.Uri, String) -> Unit,
+    onImportAudioFolder: (Context) -> Unit,
     onOpenLastFm: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit
@@ -335,15 +338,17 @@ fun ThemesScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            maxItemsInEachRow = 2,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ThemeModeOptionCard(
                 title = "Sistema",
                 icon = Icons.Default.SettingsBrightness,
                 isSelected = themeConfig.themeMode == ThemeMode.SYSTEM,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(0.48f),
                 testTag = "theme_mode_system",
                 onClick = { onSelectThemeMode(ThemeMode.SYSTEM) }
             )
@@ -351,7 +356,7 @@ fun ThemesScreen(
                 title = "Claro",
                 icon = Icons.Default.LightMode,
                 isSelected = themeConfig.themeMode == ThemeMode.LIGHT,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(0.48f),
                 testTag = "theme_mode_light",
                 onClick = { onSelectThemeMode(ThemeMode.LIGHT) }
             )
@@ -359,7 +364,7 @@ fun ThemesScreen(
                 title = "Escuro",
                 icon = Icons.Default.DarkMode,
                 isSelected = themeConfig.themeMode == ThemeMode.DARK,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(0.48f),
                 testTag = "theme_mode_dark",
                 onClick = { onSelectThemeMode(ThemeMode.DARK) }
             )
@@ -367,7 +372,7 @@ fun ThemesScreen(
                 title = "Custom",
                 icon = Icons.Default.Brush,
                 isSelected = themeConfig.themeMode == ThemeMode.CUSTOM,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(0.48f),
                 testTag = "theme_mode_custom",
                 onClick = { onSelectThemeMode(ThemeMode.CUSTOM) }
             )
@@ -786,80 +791,89 @@ fun ThemesScreen(
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        AppThemeType.values().forEach { themeType ->
-            val isSelected = themeConfig.themeMode != ThemeMode.CUSTOM && themeConfig.presetTheme == themeType
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            maxItemsInEachRow = 2,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AppThemeType.values().forEach { themeType ->
+                val isSelected = themeConfig.themeMode != ThemeMode.CUSTOM && themeConfig.presetTheme == themeType
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable {
-                        context.hapticTick()
-                        onSelectPresetTheme(themeType)
-                        if (themeConfig.themeMode == ThemeMode.CUSTOM) {
-                            onSelectThemeMode(ThemeMode.DARK)
-                        }
-                    }
-                    .testTag("theme_option_${themeType.name}"),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                ),
-                border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
-            ) {
-                Row(
+                Card(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxWidth(0.48f)
+                        .clickable {
+                            context.hapticTick()
+                            onSelectPresetTheme(themeType)
+                            if (themeConfig.themeMode == ThemeMode.CUSTOM) {
+                                onSelectThemeMode(ThemeMode.DARK)
+                            }
+                        }
+                        .testTag("theme_option_${themeType.name}"),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    ),
+                    border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                    else androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
                 ) {
-                    PresetThemePreview(themeType)
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            PresetThemePreview(themeType)
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selecionado",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = themeType.title,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             if (!themeType.isDarkPreset) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f))
-                                        .padding(horizontal = 4.dp, vertical = 1.dp)
-                                ) {
-                                    Text("Light", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
-                                }
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "LIGHT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
                             }
                         }
                         Text(
                             text = themeType.subtitle,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    }
-
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Selecionado",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
                     }
                 }
             }
@@ -996,7 +1010,7 @@ fun ThemesScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Escaneie músicas MP3/AAC salvas no seu dispositivo Android para ouvir offline.",
+                    text = "Escaneie o dispositivo ou importe uma pasta completa, incluindo subpastas, para ouvir offline.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1028,6 +1042,16 @@ fun ThemesScreen(
                         Icon(imageVector = Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Importar")
+                    }
+
+                    OutlinedButton(
+                        onClick = { context.hapticTick(); onImportAudioFolder(context) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Pasta")
                     }
                 }
 

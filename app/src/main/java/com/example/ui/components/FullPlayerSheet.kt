@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
@@ -145,6 +146,7 @@ fun FullPlayerSheet(
     if (song == null) return
 
     val context = LocalContext.current
+    val isLiveRadio = song.sourceKey?.startsWith("radio:") == true
     var isUserSeeking by remember { mutableStateOf(false) }
     var seekSliderPosition by remember { mutableFloatStateOf(0f) }
     var showMenu by remember { mutableStateOf(false) }
@@ -252,34 +254,36 @@ fun FullPlayerSheet(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Adicionar à Playlist") },
-                            onClick = {
-                                showMenu = false
-                                onAddToPlaylist(song)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Excluir música") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onDeleteSong(song)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Editar letras") },
-                            onClick = {
-                                showMenu = false
-                                onEditLyrics()
-                            }
-                        )
+                        if (!isLiveRadio) {
+                            DropdownMenuItem(
+                                text = { Text("Adicionar à Playlist") },
+                                onClick = {
+                                    showMenu = false
+                                    onAddToPlaylist(song)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Excluir música") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onDeleteSong(song)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Editar letras") },
+                                onClick = {
+                                    showMenu = false
+                                    onEditLyrics()
+                                }
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text("Equalizador de Áudio") },
                             onClick = {
@@ -691,76 +695,117 @@ fun FullPlayerSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Seekbar Slider & Timestamps
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Slider(
-                    value = displaySliderValue,
-                    onValueChange = {
-                        isUserSeeking = true
-                        seekSliderPosition = it
-                    },
-                    onValueChangeFinished = {
-                        val targetMs = (seekSliderPosition * durationMs).toLong()
-                        onSeek(targetMs)
-                        isUserSeeking = false
-                    },
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                val currentDisplayMs = if (isUserSeeking) (seekSliderPosition * durationMs).toLong() else currentPositionMs
+            // Live streams do not have a finite duration or seek position.
+            if (isLiveRadio) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = {
-                            onSeek((currentDisplayMs - 10_000L).coerceAtLeast(0L))
-                        },
-                        modifier = Modifier.size(36.dp)
+                    Icon(
+                        imageVector = Icons.Default.Radio,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Replay10,
-                            contentDescription = "Voltar 10 segundos",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
+                        Text(
+                            text = "Transmissão ao vivo",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "O áudio está tocando em tempo real",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Text(
-                        text = formatTimeMs(currentDisplayMs),
+                        text = "AO VIVO",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = if (showRemainingTime) {
-                            "-${formatTimeMs((durationMs - currentDisplayMs).coerceAtLeast(0L))}"
-                        } else {
-                            formatTimeMs(durationMs)
+                }
+            } else {
+                // Seekbar Slider & Timestamps
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Slider(
+                        value = displaySliderValue,
+                        onValueChange = {
+                            isUserSeeking = true
+                            seekSliderPosition = it
                         },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { showRemainingTime = !showRemainingTime }
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (showRemainingTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        onValueChangeFinished = {
+                            val targetMs = (seekSliderPosition * durationMs).toLong()
+                            onSeek(targetMs)
+                            isUserSeeking = false
+                        },
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    IconButton(
-                        onClick = {
-                            onSeek((currentDisplayMs + 10_000L).coerceAtMost(durationMs.coerceAtLeast(0L)))
-                        },
-                        modifier = Modifier.size(36.dp)
+
+                    val currentDisplayMs = if (isUserSeeking) (seekSliderPosition * durationMs).toLong() else currentPositionMs
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Forward10,
-                            contentDescription = "Avançar 10 segundos",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
+                        IconButton(
+                            onClick = {
+                                onSeek((currentDisplayMs - 10_000L).coerceAtLeast(0L))
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Replay10,
+                                contentDescription = "Voltar 10 segundos",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Text(
+                            text = formatTimeMs(currentDisplayMs),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                         )
+                        Text(
+                            text = if (showRemainingTime) {
+                                "-${formatTimeMs((durationMs - currentDisplayMs).coerceAtLeast(0L))}"
+                            } else {
+                                formatTimeMs(durationMs)
+                            },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showRemainingTime = !showRemainingTime }
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showRemainingTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        )
+                        IconButton(
+                            onClick = {
+                                onSeek((currentDisplayMs + 10_000L).coerceAtMost(durationMs.coerceAtLeast(0L)))
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Forward10,
+                                contentDescription = "Avançar 10 segundos",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
             }
