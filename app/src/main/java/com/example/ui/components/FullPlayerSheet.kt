@@ -688,7 +688,9 @@ fun FullPlayerSheet(
                         imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
                         contentDescription = if (song.isFavorite) "Desfavoritar" else "Favoritar",
                         tint = if (song.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .pulseOnChange(song.isFavorite)
                     )
                 }
             }
@@ -886,11 +888,11 @@ fun FullPlayerSheet(
                         .testTag("full_player_play_pause_button"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    AnimatedPlayPauseIcon(
+                        isPlaying = isPlaying,
                         contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
-                        modifier = Modifier.size(38.dp),
-                        tint = Color.White
+                        tint = Color.White,
+                        iconSize = 38.dp
                     )
                 }
 

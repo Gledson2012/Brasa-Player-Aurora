@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
@@ -625,6 +626,15 @@ fun PlaylistDetailView(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.07f),
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
             .padding(horizontal = 16.dp)
             .testTag("playlist_detail_screen")
     ) {
@@ -825,16 +835,22 @@ fun PlaylistDetailView(
                             .fillMaxWidth()
                             .clickable { context.hapticTick(); onPlaySong(playlistWithSongs.songs, index) }
                             .testTag("playlist_track_${song.id}"),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        )
+                            containerColor = if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f)
+                            else MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.36f)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 2.dp else 0.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                .padding(horizontal = 10.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Track number
@@ -846,32 +862,35 @@ fun PlaylistDetailView(
                                 modifier = Modifier.width(22.dp)
                             )
 
-                            // Cover thumbnail
+                            // Cover thumbnail with playing indicator
                             Box(contentAlignment = Alignment.Center) {
                                 SongCoverArt(
                                     song = song,
-                                    modifier = Modifier.size(42.dp),
-                                    cornerRadius = 8.dp
+                                    modifier = Modifier.size(48.dp),
+                                    cornerRadius = 12.dp
                                 )
-                                if (isCurrent && isPlaying) {
+                                if (isCurrent) {
                                     Box(
                                         modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color.Black.copy(alpha = 0.4f)),
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                if (isPlaying) Color.Black.copy(alpha = 0.45f)
+                                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.PlayArrow,
+                                            imageVector =                                            if (isPlaying) Icons.Default.GraphicEq else Icons.Default.PlayArrow,
                                             contentDescription = "Tocando",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
+                                            tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(22.dp)
                                         )
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -898,18 +917,25 @@ fun PlaylistDetailView(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                     )
                                 }
+                                if (!song.isAvailable) {
+                                    Text(
+                                        text = "Arquivo indisponível",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
 
                             // Favorite Icon
                             IconButton(
                                 onClick = { context.hapticTick(); onToggleFavorite(song) },
-                                modifier = Modifier.size(34.dp)
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
                                     imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
                                     contentDescription = "Favoritar",
                                     tint = if (song.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
 
@@ -918,14 +944,14 @@ fun PlaylistDetailView(
                                 IconButton(
                                     onClick = { context.hapticTick(); onRemoveSong(song.id) },
                                     modifier = Modifier
-                                        .size(34.dp)
+                                        .size(36.dp)
                                         .testTag("remove_song_from_playlist_${song.id}")
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.DeleteOutline,
                                         contentDescription = "Remover da playlist",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }

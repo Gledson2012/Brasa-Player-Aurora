@@ -29,17 +29,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -57,6 +62,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -701,20 +707,49 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
             AlertDialog(
                 onDismissRequest = { songToDelete = null },
                 modifier = Modifier.testTag("delete_song_dialog"),
-                title = { Text("Excluir música?") },
+                shape = RoundedCornerShape(24.dp),
+                icon = {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.errorContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                title = {
+                    Text(
+                        text = "Excluir música?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 text = {
                     Text(
-                        "A música \"${song.title}\" será removida da biblioteca e das playlists. O arquivo original não será apagado."
+                        text = "A música \"${song.title}\" será removida da biblioteca e das playlists. O arquivo original não será apagado.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
                 confirmButton = {
-                    TextButton(
+                    Button(
                         onClick = {
                             viewModel.deleteSong(song)
                             songToDelete = null
-                        }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Excluir", color = MaterialTheme.colorScheme.error)
+                        Text("Excluir")
                     }
                 },
                 dismissButton = {
@@ -748,13 +783,55 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
         if (showRestoreConfirmation) {
             AlertDialog(
                 onDismissRequest = { showRestoreConfirmation = false },
-                title = { Text("Restaurar backup?") },
-                text = { Text("A restauração substitui músicas, playlists, letras e preferências atuais.") },
+                shape = RoundedCornerShape(24.dp),
+                icon = {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                title = {
+                    Text(
+                        text = "Restaurar backup?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = "A restauração substitui músicas, playlists, letras e preferências atuais.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        showRestoreConfirmation = false
-                        restoreLauncher.launch(arrayOf("application/json", "text/plain"))
-                    }) { Text("Continuar") }
+                    Button(
+                        onClick = {
+                            showRestoreConfirmation = false
+                            restoreLauncher.launch(arrayOf("application/json", "text/plain"))
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) { Text("Continuar") }
                 },
                 dismissButton = {
                     TextButton(onClick = { showRestoreConfirmation = false }) { Text("Cancelar") }
