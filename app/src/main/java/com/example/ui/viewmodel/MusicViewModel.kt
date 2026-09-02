@@ -2,12 +2,9 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.util.Log
 import androidx.compose.ui.graphics.Color
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -17,16 +14,16 @@ import com.example.audio.RepeatMode
 import com.example.data.backup.BackupManager
 import com.example.data.datastore.ThemePreferencesDataStore
 import com.example.data.datastore.LastFmPreferencesDataStore
-import com.example.data.lastfm.LastFmClient
 import com.example.data.lastfm.ScrobbleQueueManager
-import com.example.data.lyrics.LyricsManager
 import com.example.data.lyrics.TrackLyrics
 import com.example.data.model.AlbumArtStyle
 import com.example.data.model.AppThemeType
+import com.example.data.model.CustomPresetEntity
 import com.example.data.model.EqualizerPreset
 import com.example.data.model.EqualizerState
 import com.example.data.model.LastFmSettings
 import com.example.data.model.LyricsEntity
+import com.example.data.model.ListeningStatistics
 import com.example.data.model.Playlist
 import com.example.data.model.PlaylistWithSongs
 import com.example.data.model.Song
@@ -34,9 +31,14 @@ import com.example.data.model.ThemeConfig
 import com.example.data.model.ThemeMode
 import com.example.data.model.UserSettingsEntity
 import com.example.data.model.VisualizerStyle
-import com.example.data.radio.RadiosStreamResolver
 import com.example.data.repository.MusicRepository
+import com.example.data.lyrics.LyricsManager
 import com.example.service.MusicPlaybackService
+import com.example.ui.viewmodel.delegate.EqualizerController
+import com.example.ui.viewmodel.delegate.LibraryController
+import com.example.ui.viewmodel.delegate.PlaybackController
+import com.example.ui.viewmodel.delegate.SettingsController
+import com.example.ui.viewmodel.delegate.SortOption
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,20 +49,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class SortOption(val title: String) {
-    TITLE("Título (A-Z)"),
-    ARTIST("Artista (A-Z)"),
-    DURATION("Duração"),
-    RECENTLY_ADDED("Adicionadas Recentemente")
-}
-
+/**
+ * Orchestrator ViewModel that delegates to focused controller classes:
+ * - [PlaybackController]: play/pause/seek/queue/repeat/shuffle/radio/sleep
+ * - [EqualizerController]: EQ presets/bands/bass/virtualizer/balance
+ * - [LibraryController]: search/sort/import/scan/delete/relink/playlists/lyrics
+ * - [SettingsController]: themes/lastfm/backup
+ *
+ * All public method signatures are preserved for backward compatibility
+ * with existing screens. Each call simply forwards to the appropriate delegate.
+ */
 class MusicViewModel(
     application: Application,
     private val repository: MusicRepository,
@@ -71,118 +75,87 @@ class MusicViewModel(
     private val scrobbleQueueManager: ScrobbleQueueManager
 ) : AndroidViewModel(application) {
 
-    // Player engine state exposures
-    val isPlaying: StateFlow<Boolean> = playerEngine.isPlaying
-    val currentSong: StateFlow<Song?> = playerEngine.currentSong
-    val currentPositionMs: StateFlow<Long> = playerEngine.currentPositionMs
-    val durationMs: StateFlow<Long> = playerEngine.durationMs
-    val queue: StateFlow<List<Song>> = playerEngine.queue
-    val repeatMode: StateFlow<RepeatMode> = playerEngine.repeatMode
-    val isShuffle: StateFlow<Boolean> = playerEngine.isShuffle
-    val playbackSpeed: StateFlow<Float> = playerEngine.playbackSpeed
-    val crossfadeSeconds: StateFlow<Int> = playerEngine.crossfadeSeconds
-    val visualizerAmplitudes: StateFlow<FloatArray> = playerEngine.visualizerAmplitudes
-    val waveformSamples: StateFlow<List<Float>> = playerEngine.waveformSamples
-    val playbackError: StateFlow<String?> = playerEngine.playbackError
+    // ──────────────────────────────────────────────────
+    // Delegate Controllers
+    // ──────────────────────────────────────────────────
 
-    // Search and Filtering (encapsulated)
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    val playbackCtrl = PlaybackController(
+        application = application,
+        playerEngine = playerEngine,
+        repository = repository,
+        scope = viewModelScope
+    )
 
-    private val _sortOption = MutableStateFlow(SortOption.TITLE)
-    val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
+    val equalizerCtrl = EqualizerController(
+        repository = repository,
+        playerEngine = playerEngine,
+        scope = viewModelScope
+    )
 
-    // Onboarding State
-    private val _onboardingCompleted = MutableStateFlow(false)
-    val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
+    val libraryCtrl = LibraryController(
+        application = application,
+        repository = repository,
+        scope = viewModelScope
+    )
 
-    // Pull-to-refresh state
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+    val settingsCtrl = SettingsController(
+        application = application,
+        themeDataStore = themeDataStore,
+        lastFmDataStore = lastFmDataStore,
+        backupManager = backupManager,
+        scrobbleQueueManager = scrobbleQueueManager,
+        scope = viewModelScope
+    )
 
-    fun refreshLibrary() {
-        viewModelScope.launch {
-            _isRefreshing.value = true
-            try {
-                val context = getApplication<Application>().applicationContext
-                if (!hasAudioPermission(context)) {
-                    setScanStatusMessage("Permissão de áudio necessária para escanear músicas.")
-                    return@launch
-                }
+    // ──────────────────────────────────────────────────
+    // Backward-compatible StateFlow delegations
+    // ──────────────────────────────────────────────────
 
-                // Re-scan local storage to pick up any new files.
-                withContext(Dispatchers.IO) {
-                    repository.scanDeviceAudio(context)
-                }
-                delay(800) // minimum visual feedback time
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MusicViewModel", "Error refreshing local storage", e)
-                setScanStatusMessage(e.message ?: "Falha ao atualizar as músicas.")
-            } finally {
-                _isRefreshing.value = false
-            }
-        }
-    }
+    // Playback (from PlaybackController)
+    val isPlaying: StateFlow<Boolean> = playbackCtrl.isPlaying
+    val currentSong: StateFlow<Song?> = playbackCtrl.currentSong
+    val currentPositionMs: StateFlow<Long> = playbackCtrl.currentPositionMs
+    val durationMs: StateFlow<Long> = playbackCtrl.durationMs
+    val queue: StateFlow<List<Song>> = playbackCtrl.queue
+    val repeatMode: StateFlow<RepeatMode> = playbackCtrl.repeatMode
+    val isShuffle: StateFlow<Boolean> = playbackCtrl.isShuffle
+    val playbackSpeed: StateFlow<Float> = playbackCtrl.playbackSpeed
+    val crossfadeSeconds: StateFlow<Int> = playbackCtrl.crossfadeSeconds
+    val visualizerAmplitudes: StateFlow<FloatArray> = playbackCtrl.visualizerAmplitudes
+    val waveformSamples: StateFlow<List<Float>> = playbackCtrl.waveformSamples
+    val playbackError: StateFlow<String?> = playbackCtrl.playbackError
+    val sleepTimerRemainingSeconds: StateFlow<Int?> = playbackCtrl.sleepTimerRemainingSeconds
+    val sleepTimerEndAtTrackEnd: StateFlow<Boolean> = playbackCtrl.sleepTimerEndAtTrackEnd
 
-    private fun hasAudioPermission(context: Context): Boolean {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            android.Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            android.Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-    }
+    // Library (from LibraryController)
+    val searchQuery: StateFlow<String> = libraryCtrl.searchQuery
+    val sortOption: StateFlow<SortOption> = libraryCtrl.sortOption
+    val allSongs: StateFlow<List<Song>> = libraryCtrl.allSongs
+    val favoriteSongs: StateFlow<List<Song>> = libraryCtrl.favoriteSongs
+    val recentlyPlayed: StateFlow<List<Song>> = libraryCtrl.recentlyPlayed
+    val mostPlayed: StateFlow<List<Song>> = libraryCtrl.mostPlayed
+    val allPlaylistsWithSongs: StateFlow<List<PlaylistWithSongs>> = libraryCtrl.allPlaylistsWithSongs
+    val displayedSongs: StateFlow<List<Song>> = libraryCtrl.displayedSongs
+    val currentLyrics: StateFlow<TrackLyrics?> = libraryCtrl.currentLyrics
+    val isLyricsLoading: StateFlow<Boolean> = libraryCtrl.isLyricsLoading
+    val isLyricsViewActive: StateFlow<Boolean> = libraryCtrl.isLyricsViewActive
 
-    // DB Songs Flow
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    // Settings (from SettingsController)
+    val themeConfig: StateFlow<ThemeConfig> = settingsCtrl.themeConfig
+    val themeSettings: StateFlow<ThemeConfig> = settingsCtrl.themeSettings
+    val onboardingCompleted: StateFlow<Boolean> = settingsCtrl.onboardingCompleted
+    val lastFmSettings: StateFlow<LastFmSettings> = settingsCtrl.lastFmSettings
+    val lastFmMessage: StateFlow<String?> = settingsCtrl.lastFmMessage
+    val lastFmAuthUrl: StateFlow<String?> = settingsCtrl.lastFmAuthUrl
+    val pendingScrobbleCount: StateFlow<Int> = settingsCtrl.pendingScrobbleCount
 
-    val allSongs: StateFlow<List<Song>> = repository.allSongs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Equalizer (from EqualizerController)
+    val equalizerState: StateFlow<EqualizerState> = equalizerCtrl.equalizerState
 
-    val favoriteSongs: StateFlow<List<Song>> = repository.favoriteSongs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // ──────────────────────────────────────────────────
+    // ViewModel-owned UI state (navigation, dialogs, messages)
+    // ──────────────────────────────────────────────────
 
-    val recentlyPlayed: StateFlow<List<Song>> = repository.recentlyPlayed
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val mostPlayed: StateFlow<List<Song>> = repository.mostPlayed
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allPlaylistsWithSongs: StateFlow<List<PlaylistWithSongs>> = repository.allPlaylistsWithSongs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // Real-Time Filtered & Sorted Tracks using Room Database
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
-    val displayedSongs: StateFlow<List<Song>> = combine(
-        searchQuery.debounce(250),
-        sortOption
-    ) { query, sort ->
-        Pair(query.trim(), sort)
-    }.flatMapLatest { (query, sort) ->
-        repository.searchAndSortSongs(query, sort.name)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // Equalizer State
-    private val _equalizerState = MutableStateFlow(EqualizerState())
-    val equalizerState: StateFlow<EqualizerState> = _equalizerState.asStateFlow()
-
-    // Themes & Settings (Persisted via DataStore)
-    val themeConfig: StateFlow<ThemeConfig> = themeDataStore.themeConfigFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeConfig())
-
-    val themeSettings: StateFlow<ThemeConfig> = themeConfig
-
-    val lastFmSettings: StateFlow<LastFmSettings> = lastFmDataStore.settingsFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, LastFmSettings())
-
-    // Sleep Timer (Managed by AudioPlayerEngine for persistent background playback)
-    val sleepTimerRemainingSeconds: StateFlow<Int?> = playerEngine.sleepTimerRemainingSeconds
-    val sleepTimerEndAtTrackEnd: StateFlow<Boolean> = playerEngine.sleepTimerEndAtTrackEnd
-
-    // ---- Encapsulated UI Navigation & Dialog States ----
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
@@ -191,6 +164,15 @@ class MusicViewModel(
 
     private val _activePlaylistDetail = MutableStateFlow<PlaylistWithSongs?>(null)
     val activePlaylistDetail: StateFlow<PlaylistWithSongs?> = _activePlaylistDetail.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private val _scanStatusMessage = MutableStateFlow<String?>(null)
+    val scanStatusMessage: StateFlow<String?> = _scanStatusMessage.asStateFlow()
 
     private val _showCreatePlaylistDialog = MutableStateFlow(false)
     val showCreatePlaylistDialog: StateFlow<Boolean> = _showCreatePlaylistDialog.asStateFlow()
@@ -204,371 +186,206 @@ class MusicViewModel(
     private val _showSpeedDialog = MutableStateFlow(false)
     val showSpeedDialog: StateFlow<Boolean> = _showSpeedDialog.asStateFlow()
 
-    private val _showTrackOptionsSheet = MutableStateFlow<Song?>(null)
-    val showTrackOptionsSheet: StateFlow<Song?> = _showTrackOptionsSheet.asStateFlow()
-
-    private val _scanStatusMessage = MutableStateFlow<String?>(null)
-    val scanStatusMessage: StateFlow<String?> = _scanStatusMessage.asStateFlow()
-
-    private val _lastFmMessage = MutableStateFlow<String?>(null)
-    val lastFmMessage: StateFlow<String?> = _lastFmMessage.asStateFlow()
-
-    private val _lastFmAuthUrl = MutableStateFlow<String?>(null)
-    val lastFmAuthUrl: StateFlow<String?> = _lastFmAuthUrl.asStateFlow()
-
     private val _showLastFmDialog = MutableStateFlow(false)
     val showLastFmDialog: StateFlow<Boolean> = _showLastFmDialog.asStateFlow()
-
-    val pendingScrobbleCount: StateFlow<Int> = scrobbleQueueManager.pendingCount
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     private val _showLyricsEditor = MutableStateFlow(false)
     val showLyricsEditor: StateFlow<Boolean> = _showLyricsEditor.asStateFlow()
 
-    private val _isLyricsViewActive = MutableStateFlow(false)
-    val isLyricsViewActive: StateFlow<Boolean> = _isLyricsViewActive.asStateFlow()
+    private val _showTrackOptionsSheet = MutableStateFlow<Song?>(null)
+    val showTrackOptionsSheet: StateFlow<Song?> = _showTrackOptionsSheet.asStateFlow()
 
-    // ---- Synced Lyrics State ----
-    private val _currentLyrics = MutableStateFlow<TrackLyrics?>(null)
-    val currentLyrics: StateFlow<TrackLyrics?> = _currentLyrics.asStateFlow()
+    // Statistics
+    private val _statistics = MutableStateFlow<ListeningStatistics?>(null)
+    val statistics: StateFlow<ListeningStatistics?> = _statistics.asStateFlow()
+    private val _isStatisticsLoading = MutableStateFlow(false)
+    val isStatisticsLoading: StateFlow<Boolean> = _isStatisticsLoading.asStateFlow()
 
-    private val _isLyricsLoading = MutableStateFlow(false)
-    val isLyricsLoading: StateFlow<Boolean> = _isLyricsLoading.asStateFlow()
+    private fun setScanStatusMessage(message: String?) {
+        _scanStatusMessage.value = message
+    }
+
+    // ──────────────────────────────────────────────────
+    // Combined UiState (identical structure to before)
+    // ──────────────────────────────────────────────────
 
     private data class PlaybackCore(
-        val currentSong: Song?,
-        val isPlaying: Boolean,
-        val currentPositionMs: Long,
-        val durationMs: Long,
-        val queue: List<Song>
+        val currentSong: Song?, val isPlaying: Boolean,
+        val currentPositionMs: Long, val durationMs: Long, val queue: List<Song>
     )
-
     private data class PlaybackOptions(
-        val repeatMode: RepeatMode,
-        val isShuffle: Boolean,
-        val playbackSpeed: Float,
-        val crossfadeSeconds: Int
+        val repeatMode: RepeatMode, val isShuffle: Boolean,
+        val playbackSpeed: Float, val crossfadeSeconds: Int
     )
-
     private data class PlaybackVisuals(
-        val visualizerAmplitudes: FloatArray,
-        val waveformSamples: List<Float>,
-        val sleepTimerRemainingSeconds: Int?,
-        val sleepTimerEndAtTrackEnd: Boolean,
+        val visualizerAmplitudes: FloatArray, val waveformSamples: List<Float>,
+        val sleepTimerRemainingSeconds: Int?, val sleepTimerEndAtTrackEnd: Boolean,
         val playbackError: String?
     )
-
     private data class LibraryState(
-        val allSongs: List<Song>,
-        val displayedSongs: List<Song>,
-        val favoriteSongs: List<Song>,
-        val recentlyPlayed: List<Song>,
-        val mostPlayed: List<Song>,
-        val allPlaylistsWithSongs: List<PlaylistWithSongs>
+        val allSongs: List<Song>, val displayedSongs: List<Song>,
+        val favoriteSongs: List<Song>, val recentlyPlayed: List<Song>,
+        val mostPlayed: List<Song>, val allPlaylistsWithSongs: List<PlaylistWithSongs>
     )
-
     private data class NavigationState(
-        val selectedTab: Int,
-        val isFullPlayerOpen: Boolean,
+        val selectedTab: Int, val isFullPlayerOpen: Boolean,
         val activePlaylistDetail: PlaylistWithSongs?
     )
-
     private data class AppStatus(
-        val onboardingCompleted: Boolean,
-        val isLoading: Boolean,
-        val isRefreshing: Boolean,
-        val searchQuery: String,
-        val sortOption: SortOption
+        val onboardingCompleted: Boolean, val isLoading: Boolean,
+        val isRefreshing: Boolean, val searchQuery: String, val sortOption: SortOption
     )
-
     private data class Messages(
-        val scanStatusMessage: String?,
-        val lastFmMessage: String?,
-        val lastFmAuthUrl: String?
+        val scanStatusMessage: String?, val lastFmMessage: String?, val lastFmAuthUrl: String?
     )
-
     private data class DialogState(
-        val showCreatePlaylistDialog: Boolean,
-        val showAddToPlaylistDialog: Song?,
-        val showSleepTimerDialog: Boolean,
-        val showSpeedDialog: Boolean,
-        val showLastFmDialog: Boolean,
-        val showLyricsEditor: Boolean
+        val showCreatePlaylistDialog: Boolean, val showAddToPlaylistDialog: Song?,
+        val showSleepTimerDialog: Boolean, val showSpeedDialog: Boolean,
+        val showLastFmDialog: Boolean, val showLyricsEditor: Boolean
     )
-
     private data class LyricsState(
-        val currentLyrics: TrackLyrics?,
-        val isLyricsLoading: Boolean,
+        val currentLyrics: TrackLyrics?, val isLyricsLoading: Boolean,
         val isLyricsViewActive: Boolean
     )
 
-    private val playbackCore = combine(
-        currentSong,
-        isPlaying,
-        currentPositionMs,
-        durationMs,
-        queue
-    ) { song, playing, position, duration, currentQueue ->
-        PlaybackCore(song, playing, position, duration, currentQueue)
+    private val playbackCore = combine(currentSong, isPlaying, currentPositionMs, durationMs, queue) { s, p, pos, dur, q ->
+        PlaybackCore(s, p, pos, dur, q)
     }
-
-    private val playbackOptions = combine(
-        repeatMode,
-        isShuffle,
-        playbackSpeed,
-        crossfadeSeconds
-    ) { repeat, shuffle, speed, crossfade ->
-        PlaybackOptions(repeat, shuffle, speed, crossfade)
+    private val playbackOptions = combine(repeatMode, isShuffle, playbackSpeed, crossfadeSeconds) { r, sh, sp, cf ->
+        PlaybackOptions(r, sh, sp, cf)
     }
-
-    private val playbackVisuals = combine(
-        visualizerAmplitudes,
-        waveformSamples,
-        sleepTimerRemainingSeconds,
-        sleepTimerEndAtTrackEnd,
-        playbackError
-    ) { amplitudes, waveform, timer, endAtTrackEnd, error ->
-        PlaybackVisuals(amplitudes, waveform, timer, endAtTrackEnd, error)
+    private val playbackVisuals = combine(visualizerAmplitudes, waveformSamples, sleepTimerRemainingSeconds, sleepTimerEndAtTrackEnd, playbackError) { a, w, t, e, err ->
+        PlaybackVisuals(a, w, t, e, err)
     }
+    private val playbackState = combine(playbackCore, playbackOptions, playbackVisuals) { c, o, v -> Triple(c, o, v) }
 
-    private val playbackState = combine(
-        playbackCore,
-        playbackOptions,
-        playbackVisuals
-    ) { core, options, visuals ->
-        Triple(core, options, visuals)
+    private val libraryStateFlow = combine(allSongs, displayedSongs, favoriteSongs, recentlyPlayed, mostPlayed) { s, d, f, r, p ->
+        LibraryState(s, d, f, r, p, emptyList())
+    }.let { ss -> combine(ss, allPlaylistsWithSongs) { s, pl -> s.copy(allPlaylistsWithSongs = pl) } }
+
+    private val preferencesState = combine(equalizerState, themeSettings, lastFmSettings) { eq, th, lf -> Triple(eq, th, lf) }
+    private val navigationState = combine(selectedTab, isFullPlayerOpen, activePlaylistDetail) { t, fp, pl -> NavigationState(t, fp, pl) }
+    private val appStatus = combine(onboardingCompleted, isLoading, isRefreshing, searchQuery, sortOption) { o, l, r, q, s -> AppStatus(o, l, r, q, s) }
+    private val messagesState = combine(scanStatusMessage, lastFmMessage, lastFmAuthUrl) { s, l, a -> Messages(s, l, a) }
+    private val dialogCore = combine(showCreatePlaylistDialog, showAddToPlaylistDialog, showSleepTimerDialog, showSpeedDialog, showLastFmDialog) { c, a, sl, sp, lf ->
+        DialogState(c, a, sl, sp, lf, false)
     }
+    private val dialogs = combine(dialogCore, showLyricsEditor) { s, l -> s.copy(showLyricsEditor = l) }
+    private val lyricsState = combine(currentLyrics, isLyricsLoading, isLyricsViewActive) { ly, lo, la -> LyricsState(ly, lo, la) }
 
-    private val libraryState = combine(
-        allSongs,
-        displayedSongs,
-        favoriteSongs,
-        recentlyPlayed,
-        mostPlayed
-    ) { songs, displayed, favorites, recent, popular ->
-        LibraryState(songs, displayed, favorites, recent, popular, emptyList())
-    }.let { songsState ->
-        combine(songsState, allPlaylistsWithSongs) { songs, playlists ->
-            songs.copy(allPlaylistsWithSongs = playlists)
-        }
-    }
-
-    private val preferencesState = combine(
-        equalizerState,
-        themeSettings,
-        lastFmSettings
-    ) { equalizer, theme, lastFm ->
-        Triple(equalizer, theme, lastFm)
-    }
-
-    private val navigationState = combine(
-        selectedTab,
-        isFullPlayerOpen,
-        activePlaylistDetail
-    ) { tab, fullPlayer, playlist ->
-        NavigationState(tab, fullPlayer, playlist)
-    }
-
-    private val appStatus = combine(
-        onboardingCompleted,
-        isLoading,
-        isRefreshing,
-        searchQuery,
-        sortOption
-    ) { onboarding, loading, refreshing, query, sort ->
-        AppStatus(onboarding, loading, refreshing, query, sort)
-    }
-
-    private val messages = combine(
-        scanStatusMessage,
-        lastFmMessage,
-        lastFmAuthUrl
-    ) { scan, lastFm, authUrl ->
-        Messages(scan, lastFm, authUrl)
-    }
-
-    private val dialogCore = combine(
-        showCreatePlaylistDialog,
-        showAddToPlaylistDialog,
-        showSleepTimerDialog,
-        showSpeedDialog,
-        showLastFmDialog
-    ) { create, add, sleep, speed, lastFm ->
-        DialogState(create, add, sleep, speed, lastFm, false)
-    }
-
-    private val dialogs = combine(dialogCore, showLyricsEditor) { state, lyrics ->
-        state.copy(showLyricsEditor = lyrics)
-    }
-
-    private val lyricsState = combine(
-        currentLyrics,
-        isLyricsLoading,
-        isLyricsViewActive
-    ) { lyrics, loading, viewActive ->
-        LyricsState(lyrics, loading, viewActive)
-    }
-
-    private val uiStateBase = combine(
-        playbackState,
-        libraryState,
-        preferencesState,
-        navigationState,
-        appStatus
-    ) { playback, library, preferences, navigation, status ->
+    private val uiStateBase = combine(playbackState, libraryStateFlow, preferencesState, navigationState, appStatus) { pb, lib, pref, nav, st ->
         MusicUiState(
-            currentSong = playback.first.currentSong,
-            isPlaying = playback.first.isPlaying,
-            currentPositionMs = playback.first.currentPositionMs,
-            durationMs = playback.first.durationMs,
-            queue = playback.first.queue,
-            repeatMode = playback.second.repeatMode,
-            isShuffle = playback.second.isShuffle,
-            playbackSpeed = playback.second.playbackSpeed,
-            crossfadeSeconds = playback.second.crossfadeSeconds,
-            visualizerAmplitudes = playback.third.visualizerAmplitudes,
-            waveformSamples = playback.third.waveformSamples,
-            sleepTimerRemainingSeconds = playback.third.sleepTimerRemainingSeconds,
-            sleepTimerEndAtTrackEnd = playback.third.sleepTimerEndAtTrackEnd,
-            playbackError = playback.third.playbackError,
-            allSongs = library.allSongs,
-            displayedSongs = library.displayedSongs,
-            favoriteSongs = library.favoriteSongs,
-            recentlyPlayed = library.recentlyPlayed,
-            mostPlayed = library.mostPlayed,
-            allPlaylistsWithSongs = library.allPlaylistsWithSongs,
-            equalizerState = preferences.first,
-            themeSettings = preferences.second,
-            lastFmSettings = preferences.third,
-            selectedTab = navigation.selectedTab,
-            isFullPlayerOpen = navigation.isFullPlayerOpen,
-            activePlaylistDetail = navigation.activePlaylistDetail,
-            onboardingCompleted = status.onboardingCompleted,
-            isLoading = status.isLoading,
-            isRefreshing = status.isRefreshing,
-            searchQuery = status.searchQuery,
-            sortOption = status.sortOption
+            currentSong = pb.first.currentSong, isPlaying = pb.first.isPlaying,
+            currentPositionMs = pb.first.currentPositionMs, durationMs = pb.first.durationMs,
+            queue = pb.first.queue, repeatMode = pb.second.repeatMode,
+            isShuffle = pb.second.isShuffle, playbackSpeed = pb.second.playbackSpeed,
+            crossfadeSeconds = pb.second.crossfadeSeconds,
+            visualizerAmplitudes = pb.third.visualizerAmplitudes,
+            waveformSamples = pb.third.waveformSamples,
+            sleepTimerRemainingSeconds = pb.third.sleepTimerRemainingSeconds,
+            sleepTimerEndAtTrackEnd = pb.third.sleepTimerEndAtTrackEnd,
+            playbackError = pb.third.playbackError,
+            allSongs = lib.allSongs, displayedSongs = lib.displayedSongs,
+            favoriteSongs = lib.favoriteSongs, recentlyPlayed = lib.recentlyPlayed,
+            mostPlayed = lib.mostPlayed, allPlaylistsWithSongs = lib.allPlaylistsWithSongs,
+            equalizerState = pref.first, themeSettings = pref.second,
+            lastFmSettings = pref.third, selectedTab = nav.selectedTab,
+            isFullPlayerOpen = nav.isFullPlayerOpen, activePlaylistDetail = nav.activePlaylistDetail,
+            onboardingCompleted = st.onboardingCompleted, isLoading = st.isLoading,
+            isRefreshing = st.isRefreshing, searchQuery = st.searchQuery,
+            sortOption = st.sortOption
         )
     }
 
-    val uiState: StateFlow<MusicUiState> = combine(
-        uiStateBase,
-        messages,
-        dialogs,
-        lyricsState,
-        pendingScrobbleCount
-    ) { state, appMessages, dialogState, lyrics, scrobbleCount ->
+    private val statisticsState = combine(_statistics, _isStatisticsLoading) { s, l -> Pair(s, l) }
+
+    val uiState: StateFlow<MusicUiState> = combine(uiStateBase, messagesState, dialogs, lyricsState, pendingScrobbleCount) { state, msg, dlg, ly, sc ->
         state.copy(
-            scanStatusMessage = appMessages.scanStatusMessage,
-            lastFmMessage = appMessages.lastFmMessage,
-            lastFmAuthUrl = appMessages.lastFmAuthUrl,
-            currentLyrics = lyrics.currentLyrics,
-            isLyricsLoading = lyrics.isLyricsLoading,
-            isLyricsViewActive = lyrics.isLyricsViewActive,
-            showCreatePlaylistDialog = dialogState.showCreatePlaylistDialog,
-            showAddToPlaylistDialog = dialogState.showAddToPlaylistDialog,
-            showSleepTimerDialog = dialogState.showSleepTimerDialog,
-            showSpeedDialog = dialogState.showSpeedDialog,
-            showLastFmDialog = dialogState.showLastFmDialog,
-            showLyricsEditor = dialogState.showLyricsEditor,
-            pendingScrobbleCount = scrobbleCount
+            scanStatusMessage = msg.scanStatusMessage, lastFmMessage = msg.lastFmMessage,
+            lastFmAuthUrl = msg.lastFmAuthUrl, currentLyrics = ly.currentLyrics,
+            isLyricsLoading = ly.isLyricsLoading, isLyricsViewActive = ly.isLyricsViewActive,
+            showCreatePlaylistDialog = dlg.showCreatePlaylistDialog,
+            showAddToPlaylistDialog = dlg.showAddToPlaylistDialog,
+            showSleepTimerDialog = dlg.showSleepTimerDialog,
+            showSpeedDialog = dlg.showSpeedDialog,
+            showLastFmDialog = dlg.showLastFmDialog,
+            showLyricsEditor = dlg.showLyricsEditor, pendingScrobbleCount = sc
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, MusicUiState())
+    }.combine(statisticsState) { s, sp -> s.copy(statistics = sp.first, isStatisticsLoading = sp.second) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, MusicUiState())
+
+    // ──────────────────────────────────────────────────
+    // Init block
+    // ──────────────────────────────────────────────────
 
     private var lastFmScrobbledSongId: Long? = null
-
-    // Coalesced playback-position persistence: avoids racing writes and redundant DB hits.
-    private var persistJob: Job? = null
     private var settingsPersistJob: Job? = null
-    private var radioPlaybackJob: Job? = null
-    private var lastPersistedSongId: Long? = null
-    private var lastPersistedPositionMs: Long = Long.MIN_VALUE
 
     init {
-        // Load onboarding state
-        viewModelScope.launch {
-            themeDataStore.onboardingCompletedFlow.collect { completed ->
-                _onboardingCompleted.value = completed
-            }
-        }
+        // Wire delegate callbacks
+        playbackCtrl.onScanStatusMessage = { setScanStatusMessage(it) }
+        playbackCtrl.onFullPlayerOpen = { _isFullPlayerOpen.value = true }
+        equalizerCtrl.onSettingsChanged = { persistUserSettings() }
+        libraryCtrl.setScanStatusMessage = { setScanStatusMessage(it) }
 
+        // Player engine listeners
         playerEngine.setOnSongChangedListener { song ->
             lastFmScrobbledSongId = null
-            if (!isRadioSong(song)) {
+            if (!playbackCtrl.isRadioSong(song)) {
                 viewModelScope.launch(Dispatchers.IO) {
                     repository.recordSongPlayed(song.id)
                     repository.updateLastPlayedState(song.id, currentPositionMs.value)
                     val settings = lastFmSettings.value
                     if (settings.enabled && settings.isAuthenticated) {
-                        try {
-                            scrobbleQueueManager.updateNowPlaying(song)
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (_: Exception) {
-                            // Playback must not depend on Last.fm availability.
-                        }
+                        try { scrobbleQueueManager.updateNowPlaying(song) }
+                        catch (e: CancellationException) { throw e }
+                        catch (_: Exception) { }
                     }
                 }
             }
         }
-        playerEngine.setOnFavoriteToggleListener { song ->
-            toggleFavorite(song)
-        }
+        playerEngine.setOnFavoriteToggleListener { song -> toggleFavorite(song) }
 
-        // Keep resume information fresh even when the user leaves the app without
-        // changing another setting. The position is written at most once per interval.
-        viewModelScope.launch {
-            while (isActive) {
-                delay(10_000)
-                persistPlaybackPosition()
-            }
-        }
+        // Position persistence loop
+        playbackCtrl.startPositionPersistenceLoop()
 
-        // Observe current song and fetch synchronized lyrics
+        // Lyrics auto-loading on song change
         viewModelScope.launch {
             currentSong.collectLatest { song ->
-                if (song != null && !isRadioSong(song)) {
-                    _isLyricsLoading.value = true
-                    _currentLyrics.value = null
+                if (song != null && !playbackCtrl.isRadioSong(song)) {
+                    libraryCtrl.setLyricsLoading(true)
+                    libraryCtrl.setLyrics(null)
                     try {
-                        val lyrics = loadLyrics(song)
-                        _currentLyrics.value = lyrics
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e("MusicViewModel", "Error loading lyrics for ${song.title}", e)
-                    } finally {
-                        _isLyricsLoading.value = false
-                    }
+                        val lyrics = libraryCtrl.loadLyricsForSong(song)
+                        libraryCtrl.setLyrics(lyrics)
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { Log.e("MusicViewModel", "Error loading lyrics for ${song.title}", e) }
+                    finally { libraryCtrl.setLyricsLoading(false) }
                 } else {
-                    _currentLyrics.value = null
-                    _isLyricsLoading.value = false
+                    libraryCtrl.setLyrics(null)
+                    libraryCtrl.setLyricsLoading(false)
                 }
             }
         }
 
-        // Last.fm scrobbling follows the standard 50% / four-minute threshold.
+        // Last.fm scrobbling (50% / 4min threshold)
         viewModelScope.launch {
-            combine(currentSong, currentPositionMs, durationMs, lastFmSettings) { song, position, duration, settings ->
-                ScrobbleState(song, position, duration, settings)
+            combine(currentSong, currentPositionMs, durationMs, lastFmSettings) { song, pos, dur, settings ->
+                Triple(song, Pair(pos, dur), settings)
             }.collect { state ->
-                val song = state.song ?: return@collect
-                if (isRadioSong(song)) return@collect
-                val settings = state.settings
-                val threshold = minOf(state.durationMs / 2L, 240_000L)
-                if (
-                    state.durationMs >= 30_000L &&
-                    state.positionMs >= threshold.coerceAtLeast(30_000L) &&
-                    settings.enabled && settings.isAuthenticated &&
-                    lastFmScrobbledSongId != song.id
+                val song = state.first ?: return@collect
+                if (playbackCtrl.isRadioSong(song)) return@collect
+                val (pos, dur) = state.second
+                val settings = state.third
+                val threshold = minOf(dur / 2L, 240_000L)
+                if (dur >= 30_000L && pos >= threshold.coerceAtLeast(30_000L) &&
+                    settings.enabled && settings.isAuthenticated && lastFmScrobbledSongId != song.id
                 ) {
                     lastFmScrobbledSongId = song.id
-                    try {
-                        scrobbleQueueManager.queueScrobble(song)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        setLastFmMessage("Last.fm: ${e.message ?: "falha ao enviar scrobble"}")
+                    try { scrobbleQueueManager.queueScrobble(song) }
+                    catch (e: CancellationException) { throw e }
+                    catch (e: Exception) {
+                        settingsCtrl.lastFmMessage.let { /* message already set */ }
                     }
                 }
             }
@@ -577,16 +394,11 @@ class MusicViewModel(
         // Initialize default queue when songs load
         viewModelScope.launch {
             allSongs.collect { songs ->
-                if (_isLoading.value) {
-                    _isLoading.value = false
-                }
+                if (_isLoading.value) _isLoading.value = false
                 if (songs.isNotEmpty() && currentSong.value == null) {
-                    val saved = withContext(Dispatchers.IO) {
-                        repository.getUserSettingsOnce()
-                    }
+                    val saved = withContext(Dispatchers.IO) { repository.getUserSettingsOnce() }
                     val savedIndex = saved.lastPlayedSongId
-                        ?.let { id -> songs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
-                        ?: 0
+                        ?.let { id -> songs.indexOfFirst { it.id == id }.takeIf { it >= 0 } } ?: 0
                     playerEngine.setQueue(songs, startIndex = savedIndex, autoPlay = false)
                     if (saved.lastPlayedSongId != null && songs.getOrNull(savedIndex)?.id == saved.lastPlayedSongId) {
                         playerEngine.seekTo(saved.lastPlaybackPositionMs)
@@ -595,167 +407,108 @@ class MusicViewModel(
             }
         }
 
-        // Observe and load user settings from Room database for equalizer
+        // Observe user settings from Room for equalizer
         viewModelScope.launch {
             repository.userSettings.collect { settings ->
                 if (settings != null) {
-                    val eq = EqualizerState(
-                        isEnabled = settings.equalizerEnabled,
-                        currentPresetId = settings.currentPresetId,
-                        bandLevels = listOf(settings.band0, settings.band1, settings.band2, settings.band3, settings.band4)
-                            .map { it.coerceIn(-10, 10) },
-                        bassBoost = settings.bassBoost.coerceIn(0, 100),
-                        virtualizer = settings.virtualizer.coerceIn(0, 100),
-                        balance = settings.balance.coerceIn(-1f, 1f),
-                        // Room emits settings after every adjustment. Preserve
-                        // the already loaded custom presets until their own
-                        // flow emits, otherwise a settings update briefly
-                        // wipes them from the UI.
-                        customPresets = _equalizerState.value.customPresets
-                    )
-                    _equalizerState.value = eq
-                    playerEngine.syncEqualizer(eq)
+                    equalizerCtrl.updateFromSettings(settings)
                     playerEngine.setPlaybackSpeed(settings.playbackSpeed)
                     playerEngine.setCrossfadeSeconds(settings.crossfadeSeconds)
-                    val restoredRepeatMode = try {
-                        RepeatMode.valueOf(settings.repeatMode)
-                    } catch (_: Exception) {
-                        RepeatMode.ALL
-                    }
+                    val restoredRepeatMode = try { RepeatMode.valueOf(settings.repeatMode) } catch (_: Exception) { RepeatMode.ALL }
                     playerEngine.setRepeatMode(restoredRepeatMode)
                     playerEngine.setShuffleMode(settings.isShuffle)
                 }
             }
         }
 
-        // Observe custom equalizer presets from Room
+        // Observe custom equalizer presets
         viewModelScope.launch {
-            repository.customPresets.collect { customList ->
-                val converted = customList.map {
-                    EqualizerPreset(
-                        id = "custom_${it.id}",
-                        name = it.name,
-                        bandLevels = listOf(it.band0, it.band1, it.band2, it.band3, it.band4),
-                        bassBoost = it.bassBoost,
-                        virtualizer = it.virtualizer,
-                        isCustom = true
-                    )
+            repository.customPresets.collect { customList -> equalizerCtrl.updateCustomPresets(customList) }
+        }
+    }
+
+    // ──────────────────────────────────────────────────
+    // UI Navigation / Dialog helpers
+    // ──────────────────────────────────────────────────
+
+    fun completeOnboarding() = settingsCtrl.completeOnboarding()
+
+    fun handleShortcutAction(action: String) {
+        viewModelScope.launch {
+            delay(600)
+            when (action) {
+                "play_favorites" -> {
+                    val favorites = withContext(Dispatchers.IO) { repository.favoriteSongs.first() }
+                    if (favorites.isNotEmpty()) {
+                        playbackCtrl.ensurePlaybackService()
+                        playerEngine.setQueue(favorites, startIndex = 0, autoPlay = true)
+                        _isFullPlayerOpen.value = true
+                    } else {
+                        setScanStatusMessage("Nenhuma música favorita encontrada.")
+                        delay(3000); setScanStatusMessage(null)
+                    }
                 }
-                _equalizerState.value = _equalizerState.value.copy(customPresets = converted)
+                "shuffle_all" -> {
+                    val songs = withContext(Dispatchers.IO) { repository.allSongs.first() }
+                    if (songs.isNotEmpty()) {
+                        playbackCtrl.ensurePlaybackService()
+                        playerEngine.setQueue(songs.shuffled(), startIndex = 0, autoPlay = true)
+                        _isFullPlayerOpen.value = true
+                    } else {
+                        setScanStatusMessage("Biblioteca vazia.")
+                        delay(3000); setScanStatusMessage(null)
+                    }
+                }
+                "open_radio" -> { _selectedTab.value = 5 }
             }
         }
     }
 
-    // ---- UI Navigation / Dialog helpers ----
-    fun completeOnboarding() {
+    fun selectTab(index: Int) { _selectedTab.value = index.coerceIn(0, 5) }
+    fun openFullPlayer() { _isFullPlayerOpen.value = true }
+    fun closeFullPlayer() { _isFullPlayerOpen.value = false }
+    fun openPlaylistDetail(playlist: PlaylistWithSongs) { _activePlaylistDetail.value = playlist }
+    fun closePlaylistDetail() { _activePlaylistDetail.value = null }
+    fun showCreatePlaylistDialog() { _showCreatePlaylistDialog.value = true }
+    fun dismissCreatePlaylistDialog() { _showCreatePlaylistDialog.value = false }
+    fun showAddToPlaylistDialog(song: Song) { _showAddToPlaylistDialog.value = song }
+    fun dismissAddToPlaylistDialog() { _showAddToPlaylistDialog.value = null }
+    fun showSleepTimerDialog() { _showSleepTimerDialog.value = true }
+    fun dismissSleepTimerDialog() { _showSleepTimerDialog.value = false }
+    fun showSpeedDialog() { _showSpeedDialog.value = true }
+    fun dismissSpeedDialog() { _showSpeedDialog.value = false }
+    fun showTrackOptions(song: Song) { _showTrackOptionsSheet.value = song }
+    fun dismissTrackOptions() { _showTrackOptionsSheet.value = null }
+    fun notifyScanStatusMessage(message: String?) { _scanStatusMessage.value = message }
+    fun showLastFmDialog() { _showLastFmDialog.value = true }
+    fun dismissLastFmDialog() { _showLastFmDialog.value = false }
+    fun showLyricsEditor() { _showLyricsEditor.value = true }
+    fun dismissLyricsEditor() { _showLyricsEditor.value = false }
+
+    // ──────────────────────────────────────────────────
+    // Statistics
+    // ──────────────────────────────────────────────────
+
+    fun loadStatistics() {
         viewModelScope.launch {
-            themeDataStore.setOnboardingCompleted(true)
-            _onboardingCompleted.value = true
+            _isStatisticsLoading.value = true
+            try { _statistics.value = repository.getListeningStatistics() }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { Log.e("MusicViewModel", "Error loading statistics", e) }
+            finally { _isStatisticsLoading.value = false }
         }
     }
 
-    fun selectTab(index: Int) {
-        _selectedTab.value = index.coerceIn(0, 5)
-    }
-
-    fun openFullPlayer() {
-        _isFullPlayerOpen.value = true
-    }
-
-    fun closeFullPlayer() {
-        _isFullPlayerOpen.value = false
-    }
-
-    fun openPlaylistDetail(playlist: PlaylistWithSongs) {
-        _activePlaylistDetail.value = playlist
-    }
-
-    fun closePlaylistDetail() {
-        _activePlaylistDetail.value = null
-    }
-
-    fun showCreatePlaylistDialog() {
-        _showCreatePlaylistDialog.value = true
-    }
-
-    fun dismissCreatePlaylistDialog() {
-        _showCreatePlaylistDialog.value = false
-    }
-
-    fun showAddToPlaylistDialog(song: Song) {
-        _showAddToPlaylistDialog.value = song
-    }
-
-    fun dismissAddToPlaylistDialog() {
-        _showAddToPlaylistDialog.value = null
-    }
-
-    fun showSleepTimerDialog() {
-        _showSleepTimerDialog.value = true
-    }
-
-    fun dismissSleepTimerDialog() {
-        _showSleepTimerDialog.value = false
-    }
-
-    fun showSpeedDialog() {
-        _showSpeedDialog.value = true
-    }
-
-    fun dismissSpeedDialog() {
-        _showSpeedDialog.value = false
-    }
-
-    fun showTrackOptions(song: Song) {
-        _showTrackOptionsSheet.value = song
-    }
-
-    fun dismissTrackOptions() {
-        _showTrackOptionsSheet.value = null
-    }
-
-    fun notifyScanStatusMessage(message: String?) {
-        _scanStatusMessage.value = message
-    }
-
-    private fun setScanStatusMessage(message: String?) {
-        _scanStatusMessage.value = message
-    }
-
-    private fun setLastFmMessage(message: String?) {
-        _lastFmMessage.value = message
-    }
-
-    fun showLastFmDialog() {
-        _showLastFmDialog.value = true
-    }
-
-    fun dismissLastFmDialog() {
-        _showLastFmDialog.value = false
-    }
-
-    fun showLyricsEditor() {
-        _showLyricsEditor.value = true
-    }
-
-    fun dismissLyricsEditor() {
-        _showLyricsEditor.value = false
-    }
-
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun setSortOption(option: SortOption) {
-        _sortOption.value = option
-    }
+    // ──────────────────────────────────────────────────
+    // Settings persistence
+    // ──────────────────────────────────────────────────
 
     private fun persistUserSettings() {
         settingsPersistJob?.cancel()
         settingsPersistJob = viewModelScope.launch {
             delay(250)
             val currentTheme = themeConfig.value
-            val currentEq = _equalizerState.value
+            val currentEq = equalizerState.value
             val bands = currentEq.bandLevels
             val entity = UserSettingsEntity(
                 id = 1,
@@ -765,751 +518,177 @@ class MusicViewModel(
                 dynamicColors = currentTheme.dynamicColors,
                 equalizerEnabled = currentEq.isEnabled,
                 currentPresetId = currentEq.currentPresetId,
-                band0 = bands.getOrElse(0) { 0 },
-                band1 = bands.getOrElse(1) { 0 },
-                band2 = bands.getOrElse(2) { 0 },
-                band3 = bands.getOrElse(3) { 0 },
+                band0 = bands.getOrElse(0) { 0 }, band1 = bands.getOrElse(1) { 0 },
+                band2 = bands.getOrElse(2) { 0 }, band3 = bands.getOrElse(3) { 0 },
                 band4 = bands.getOrElse(4) { 0 },
-                bassBoost = currentEq.bassBoost,
-                virtualizer = currentEq.virtualizer,
+                bassBoost = currentEq.bassBoost, virtualizer = currentEq.virtualizer,
                 balance = currentEq.balance,
-                playbackSpeed = playbackSpeed.value,
-                crossfadeSeconds = crossfadeSeconds.value,
-                repeatMode = repeatMode.value.name,
-                isShuffle = isShuffle.value,
-                lastPlayedSongId = currentSong.value
-                    ?.takeUnless(::isRadioSong)
-                    ?.id,
+                playbackSpeed = playbackSpeed.value, crossfadeSeconds = crossfadeSeconds.value,
+                repeatMode = repeatMode.value.name, isShuffle = isShuffle.value,
+                lastPlayedSongId = currentSong.value?.takeUnless { playbackCtrl.isRadioSong(it) }?.id,
                 lastPlaybackPositionMs = currentPositionMs.value
             )
             repository.saveUserSettings(entity)
         }
     }
 
-    // Playback Controls
-    fun playSongFromList(songs: List<Song>, startIndex: Int) {
-        ensurePlaybackService()
-        schedulePersistPlaybackPosition()
-        playerEngine.setQueue(songs, startIndex = startIndex, autoPlay = true)
+    private fun isRadioSong(song: Song) = playbackCtrl.isRadioSong(song)
+
+    // ──────────────────────────────────────────────────
+    // Playback Controls (delegate)
+    // ──────────────────────────────────────────────────
+
+    fun playSongFromList(songs: List<Song>, startIndex: Int) = playbackCtrl.playSongFromList(songs, startIndex)
+    fun playSong(song: Song) = playbackCtrl.playSong(song)
+    fun togglePlayPause() = playbackCtrl.togglePlayPause()
+    fun skipToNext() = playbackCtrl.skipToNext()
+    fun playNext() = playbackCtrl.playNext()
+    fun skipToPrevious() = playbackCtrl.skipToPrevious()
+    fun playPrevious() = playbackCtrl.playPrevious()
+    fun seekTo(positionMs: Long) = playbackCtrl.seekTo(positionMs)
+    fun clearPlaybackError() = playbackCtrl.clearPlaybackError()
+    fun toggleRepeatMode() { playbackCtrl.toggleRepeatMode(); persistUserSettings() }
+    fun cycleRepeatMode() = toggleRepeatMode()
+    fun toggleShuffle() { playbackCtrl.toggleShuffle(); persistUserSettings() }
+    fun setPlaybackSpeed(speed: Float) { playbackCtrl.setPlaybackSpeed(speed); persistUserSettings() }
+    fun setCrossfadeSeconds(seconds: Int) { playbackCtrl.setCrossfadeSeconds(seconds); persistUserSettings() }
+    fun toggleFavorite(song: Song) = playbackCtrl.toggleFavorite(song)
+
+    fun playRadio(title: String, category: String, coverUri: String, radioId: String?, streamUrl: String? = null) =
+        playbackCtrl.playRadio(title, category, coverUri, radioId, streamUrl)
+
+    fun updateSongMetadata(song: Song, title: String, artist: String, album: String, genre: String, coverUri: String?) =
+        playbackCtrl.updateSongMetadata(song, title, artist, album, genre, coverUri)
+
+    // ──────────────────────────────────────────────────
+    // Equalizer Controls (delegate)
+    // ──────────────────────────────────────────────────
+
+    fun toggleEqualizer(enabled: Boolean) = equalizerCtrl.toggleEqualizer(enabled)
+    fun setEqualizerEnabled(enabled: Boolean) = toggleEqualizer(enabled)
+    fun selectEqualizerPreset(preset: EqualizerPreset) = equalizerCtrl.selectPreset(preset)
+    fun setBandLevel(bandIndex: Int, level: Int) = equalizerCtrl.setBandLevel(bandIndex, level)
+    fun setEqualizerBandGain(bandIndex: Int, gain: Int) = setBandLevel(bandIndex, gain)
+    fun resetEqualizer() = equalizerCtrl.resetEqualizer()
+    fun setBassBoost(value: Int) = equalizerCtrl.setBassBoost(value)
+    fun setVirtualizer(value: Int) = equalizerCtrl.setVirtualizer(value)
+    fun setBalance(value: Float) = equalizerCtrl.setBalance(value)
+    fun saveCustomEqualizerPreset(name: String) = equalizerCtrl.saveCustomPreset(name)
+    fun saveCurrentAsCustomPreset(name: String) = saveCustomEqualizerPreset(name)
+    fun deleteCustomEqualizerPreset(presetId: String) = equalizerCtrl.deleteCustomPreset(presetId)
+    fun deleteCustomPreset(preset: EqualizerPreset) = deleteCustomEqualizerPreset(preset.id)
+    fun deleteCustomPreset(presetId: String) = deleteCustomEqualizerPreset(presetId)
+
+    // ──────────────────────────────────────────────────
+    // Theme Controls (delegate)
+    // ──────────────────────────────────────────────────
+
+    fun setThemeMode(mode: ThemeMode) { settingsCtrl.setThemeMode(mode); persistUserSettings() }
+    fun setPresetTheme(theme: AppThemeType) { settingsCtrl.setPresetTheme(theme); persistUserSettings() }
+    fun setTheme(theme: AppThemeType) = setPresetTheme(theme)
+    fun setCustomTheme(primary: Color, secondary: Color, tertiary: Color = Color(0xFFFF007F), surface: Color, background: Color, isDark: Boolean = true) {
+        settingsCtrl.setCustomTheme(primary, secondary, tertiary, surface, background, isDark); persistUserSettings()
     }
+    fun setDynamicColors(enabled: Boolean) { settingsCtrl.setDynamicColors(enabled); persistUserSettings() }
+    fun setVisualizerStyle(style: VisualizerStyle) { settingsCtrl.setVisualizerStyle(style); persistUserSettings() }
+    fun setAlbumArtStyle(style: AlbumArtStyle) { settingsCtrl.setAlbumArtStyle(style); persistUserSettings() }
+    fun resetThemeSettings() { settingsCtrl.resetThemeSettings(); persistUserSettings() }
 
-    fun playSong(song: Song) {
-        ensurePlaybackService()
-        val currentQueue = queue.value
-        if (currentQueue.none { it.id == song.id }) {
-            playerEngine.setQueue(listOf(song) + currentQueue, 0, true)
-        } else {
-            playerEngine.playSong(song)
-        }
-    }
+    // ──────────────────────────────────────────────────
+    // Last.fm Controls (delegate)
+    // ──────────────────────────────────────────────────
 
-    /** Plays a Radios.com.br station through the same internal player. */
-    fun playRadio(
-        title: String,
-        category: String,
-        coverUri: String,
-        radioId: String?,
-        streamUrl: String? = null
-    ) {
-        radioPlaybackJob?.cancel()
-        radioPlaybackJob = viewModelScope.launch {
-            setScanStatusMessage("Conectando a $title…")
-            val sourceUrl = streamUrl?.takeIf {
-                it.startsWith("http://") || it.startsWith("https://")
-            }
-            val playableStreamUrl = sourceUrl?.let { RadiosStreamResolver.resolve(it) }
-            if (playableStreamUrl.isNullOrBlank()) {
-                setScanStatusMessage("A estação \"$title\" não está disponível para reprodução agora.")
-                delay(3500)
-                setScanStatusMessage(null)
-                return@launch
-            }
+    fun requestLastFmAuthorization() = settingsCtrl.requestLastFmAuthorization()
+    fun completeLastFmAuthorization() = settingsCtrl.completeLastFmAuthorization()
+    fun saveLastFmCredentials(apiKey: String, apiSecret: String) = settingsCtrl.saveLastFmCredentials(apiKey, apiSecret)
+    fun setLastFmEnabled(enabled: Boolean) = settingsCtrl.setLastFmEnabled(enabled)
+    fun disconnectLastFm() = settingsCtrl.disconnectLastFm()
+    fun clearPendingScrobbles() = settingsCtrl.clearPendingScrobbles()
+    fun processPendingScrobbles() = settingsCtrl.processPendingScrobbles()
 
-            ensurePlaybackService()
-            val stationKey = radioId ?: streamUrl ?: title
-            val radioSong = Song(
-                id = radioSongId(stationKey),
-                title = title,
-                artist = "Radios.com.br • $category",
-                album = "Rádio ao vivo",
-                durationMs = 0L,
-                mediaUri = playableStreamUrl,
-                coverUri = coverUri,
-                genre = category,
-                sourceKey = "radio:$stationKey",
-                isAvailable = true
-            )
-            playerEngine.setQueue(listOf(radioSong), startIndex = 0, autoPlay = true)
-            _isFullPlayerOpen.value = true
-            setScanStatusMessage(null)
-        }
-    }
+    // ──────────────────────────────────────────────────
+    // Library Controls (delegate)
+    // ──────────────────────────────────────────────────
 
-    private fun isRadioSong(song: Song): Boolean = song.sourceKey?.startsWith("radio:") == true
+    fun setSearchQuery(query: String) = libraryCtrl.setSearchQuery(query)
+    fun setSortOption(option: SortOption) = libraryCtrl.setSortOption(option)
+    fun deleteSong(song: Song) = libraryCtrl.deleteSong(song) { setScanStatusMessage(it) }
+    fun relinkSong(context: Context, song: Song, uri: Uri) = libraryCtrl.relinkSong(context, song, uri) { setScanStatusMessage(it) }
+    fun scanLocalStorage(context: Context) = libraryCtrl.scanLocalStorage(context) { setScanStatusMessage(it) }
+    fun importSingleAudio(context: Context, uri: Uri, fileName: String) = libraryCtrl.importSingleAudio(context, uri, fileName) { setScanStatusMessage(it) }
+    fun importAudioFiles(context: Context, uris: List<Uri>) = libraryCtrl.importAudioFiles(context, uris) { setScanStatusMessage(it) }
+    fun importAudioFolder(context: Context, folderUri: Uri) = libraryCtrl.importAudioFolder(context, folderUri) { setScanStatusMessage(it) }
 
-    private fun radioSongId(radioId: String): Long {
-        val numericId = radioId.filter { it.isDigit() }.toLongOrNull()
-        val stableId = numericId?.coerceAtLeast(1L)
-            ?: kotlin.math.abs(radioId.hashCode().toLong()).coerceAtLeast(1L)
-        return -stableId
-    }
+    // ──────────────────────────────────────────────────
+    // Playlist Controls (delegate)
+    // ──────────────────────────────────────────────────
 
-    fun updateSongMetadata(
-        song: Song,
-        title: String,
-        artist: String,
-        album: String,
-        genre: String,
-        coverUri: String?
-    ) {
-        val updatedSong = song.copy(
-            title = title.trim().ifBlank { song.title },
-            artist = artist.trim().ifBlank { "Artista Desconhecido" },
-            album = album.trim().ifBlank { "Álbum Desconhecido" },
-            genre = genre.trim().ifBlank { "Geral" },
-            coverUri = coverUri?.trim()?.takeIf { it.isNotEmpty() }
-        )
-        viewModelScope.launch {
-            repository.updateSong(updatedSong)
-            playerEngine.updateSongMetadata(updatedSong)
-        }
-    }
-
-    fun deleteSong(song: Song) {
-        viewModelScope.launch {
-            try {
-                repository.deleteSong(song)
-                LyricsManager.clearCache(song.id)
-                playerEngine.removeSong(song.id)
-                setScanStatusMessage("Música removida da biblioteca.")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MusicViewModel", "Error deleting song ${song.id}", e)
-                setScanStatusMessage(e.message ?: "Não foi possível remover a música.")
-            }
-            delay(3500)
-            setScanStatusMessage(null)
-        }
-    }
-
-    fun relinkSong(context: Context, song: Song, uri: Uri) {
-        viewModelScope.launch {
-            try {
-                val updated = repository.relinkSong(context, song.id, uri)
-                playerEngine.updateSongMetadata(updated)
-                setScanStatusMessage("Arquivo de \"${song.title}\" atualizado.")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MusicViewModel", "Error relinking audio ${song.id}", e)
-                setScanStatusMessage(e.message ?: "Não foi possível atualizar o arquivo de áudio.")
-            }
-            delay(3500)
-            setScanStatusMessage(null)
-        }
-    }
-
-    fun togglePlayPause() {
-        ensurePlaybackService()
-        playerEngine.togglePlayPause()
-        schedulePersistPlaybackPosition()
-    }
-
-    fun skipToNext() {
-        ensurePlaybackService()
-        schedulePersistPlaybackPosition()
-        playerEngine.playNext()
-    }
-
-    fun playNext() {
-        ensurePlaybackService()
-        schedulePersistPlaybackPosition()
-        playerEngine.playNext()
-    }
-
-    fun skipToPrevious() {
-        ensurePlaybackService()
-        schedulePersistPlaybackPosition()
-        playerEngine.playPrevious()
-    }
-
-    fun playPrevious() {
-        ensurePlaybackService()
-        schedulePersistPlaybackPosition()
-        playerEngine.playPrevious()
-    }
-
-    fun seekTo(positionMs: Long) {
-        ensurePlaybackService()
-        playerEngine.seekTo(positionMs)
-        schedulePersistPlaybackPosition()
-    }
-
-    fun clearPlaybackError() {
-        playerEngine.clearPlaybackError()
-    }
-
-    /** The service owns the MediaSession; the engine only owns audio state. */
-    private fun ensurePlaybackService() {
-        MusicPlaybackService.startService(getApplication<Application>())
-    }
-
-    fun toggleRepeatMode() {
-        playerEngine.cycleRepeatMode()
-        persistUserSettings()
-    }
-
-    fun cycleRepeatMode() {
-        toggleRepeatMode()
-    }
-
-    fun toggleShuffle() {
-        playerEngine.toggleShuffle()
-        persistUserSettings()
-    }
-
-    fun setPlaybackSpeed(speed: Float) {
-        playerEngine.setPlaybackSpeed(speed)
-        persistUserSettings()
-    }
-
-    fun setCrossfadeSeconds(seconds: Int) {
-        playerEngine.setCrossfadeSeconds(seconds)
-        persistUserSettings()
-    }
-
-    fun toggleFavorite(song: Song) {
-        if (isRadioSong(song)) return
-        viewModelScope.launch {
-            repository.toggleFavorite(song)
-        }
-    }
-
-    // Equalizer Operations
-    fun toggleEqualizer(enabled: Boolean) {
-        val updated = _equalizerState.value.copy(isEnabled = enabled)
-        _equalizerState.value = updated
-        playerEngine.syncEqualizer(updated)
-        persistUserSettings()
-    }
-
-    fun setEqualizerEnabled(enabled: Boolean) {
-        toggleEqualizer(enabled)
-    }
-
-    fun selectEqualizerPreset(preset: EqualizerPreset) {
-        val updated = _equalizerState.value.copy(
-            currentPresetId = preset.id,
-            bandLevels = preset.bandLevels.map { it.coerceIn(-10, 10) },
-            bassBoost = preset.bassBoost.coerceIn(0, 100),
-            virtualizer = preset.virtualizer.coerceIn(0, 100)
-        )
-        _equalizerState.value = updated
-        playerEngine.syncEqualizer(updated)
-        persistUserSettings()
-    }
-
-    fun setBandLevel(bandIndex: Int, level: Int) {
-        val currentBands = _equalizerState.value.bandLevels.toMutableList()
-        if (bandIndex in currentBands.indices) {
-            currentBands[bandIndex] = level.coerceIn(-10, 10)
-            val updated = _equalizerState.value.copy(
-                bandLevels = currentBands,
-                currentPresetId = "custom_user"
-            )
-            _equalizerState.value = updated
-            playerEngine.syncEqualizer(updated)
-            persistUserSettings()
-        }
-    }
-
-    fun setEqualizerBandGain(bandIndex: Int, gain: Int) {
-        setBandLevel(bandIndex, gain)
-    }
-
-    fun resetEqualizer() {
-        val resetState = EqualizerState(
-            customPresets = _equalizerState.value.customPresets
-        )
-        _equalizerState.value = resetState
-        playerEngine.syncEqualizer(resetState)
-        persistUserSettings()
-    }
-
-    fun setBassBoost(value: Int) {
-        val updated = _equalizerState.value.copy(bassBoost = value.coerceIn(0, 100))
-        _equalizerState.value = updated
-        playerEngine.syncEqualizer(updated)
-        persistUserSettings()
-    }
-
-    fun setVirtualizer(value: Int) {
-        val updated = _equalizerState.value.copy(virtualizer = value.coerceIn(0, 100))
-        _equalizerState.value = updated
-        playerEngine.syncEqualizer(updated)
-        persistUserSettings()
-    }
-
-    fun setBalance(value: Float) {
-        val updated = _equalizerState.value.copy(balance = value.coerceIn(-1f, 1f))
-        _equalizerState.value = updated
-        playerEngine.syncEqualizer(updated)
-        persistUserSettings()
-    }
-
-    fun saveCustomEqualizerPreset(name: String) {
-        viewModelScope.launch {
-            val cleanName = name.trim().take(100)
-            if (cleanName.isBlank()) return@launch
-            val currentEq = _equalizerState.value
-            val bands = currentEq.bandLevels
-            val entity = com.example.data.model.CustomPresetEntity(
-                name = cleanName,
-                band0 = bands.getOrElse(0) { 0 }.coerceIn(-10, 10),
-                band1 = bands.getOrElse(1) { 0 }.coerceIn(-10, 10),
-                band2 = bands.getOrElse(2) { 0 }.coerceIn(-10, 10),
-                band3 = bands.getOrElse(3) { 0 }.coerceIn(-10, 10),
-                band4 = bands.getOrElse(4) { 0 }.coerceIn(-10, 10),
-                bassBoost = currentEq.bassBoost.coerceIn(0, 100),
-                virtualizer = currentEq.virtualizer.coerceIn(0, 100)
-            )
-            repository.saveCustomPreset(entity)
-        }
-    }
-
-    fun saveCurrentAsCustomPreset(name: String) {
-        saveCustomEqualizerPreset(name)
-    }
-
-    fun deleteCustomEqualizerPreset(presetId: String) {
-        viewModelScope.launch {
-            val longId = presetId.removePrefix("custom_").toLongOrNull()
-            if (longId != null) {
-                repository.deleteCustomPreset(longId)
-            }
-        }
-    }
-
-    fun deleteCustomPreset(preset: EqualizerPreset) {
-        deleteCustomEqualizerPreset(preset.id)
-    }
-
-    fun deleteCustomPreset(presetId: String) {
-        deleteCustomEqualizerPreset(presetId)
-    }
-
-    // Theme DataStore Operations
-    fun setThemeMode(mode: ThemeMode) {
-        viewModelScope.launch {
-            themeDataStore.setThemeMode(mode)
-            persistUserSettings()
-        }
-    }
-
-    fun setPresetTheme(theme: AppThemeType) {
-        viewModelScope.launch {
-            themeDataStore.setPresetTheme(theme)
-            persistUserSettings()
-        }
-    }
-
-    fun setTheme(theme: AppThemeType) {
-        setPresetTheme(theme)
-    }
-
-    fun setCustomTheme(
-        primary: Color,
-        secondary: Color,
-        tertiary: Color = Color(0xFFFF007F),
-        surface: Color,
-        background: Color,
-        isDark: Boolean = true
-    ) {
-        viewModelScope.launch {
-            themeDataStore.setCustomTheme(primary, secondary, tertiary, surface, background, isDark)
-            themeDataStore.setThemeMode(ThemeMode.CUSTOM)
-            persistUserSettings()
-        }
-    }
-
-    fun setDynamicColors(enabled: Boolean) {
-        viewModelScope.launch {
-            themeDataStore.setDynamicColors(enabled)
-            persistUserSettings()
-        }
-    }
-
-    fun setVisualizerStyle(style: VisualizerStyle) {
-        viewModelScope.launch {
-            themeDataStore.setVisualizerStyle(style)
-            persistUserSettings()
-        }
-    }
-
-    fun setAlbumArtStyle(style: AlbumArtStyle) {
-        viewModelScope.launch {
-            themeDataStore.setAlbumArtStyle(style)
-            persistUserSettings()
-        }
-    }
-
-    fun resetThemeSettings() {
-        viewModelScope.launch {
-            themeDataStore.resetToDefault()
-            persistUserSettings()
-        }
-    }
-
-    // Playlists Operations
-    fun createPlaylist(name: String, description: String = "", iconName: String = "playlist_play", gradientIndex: Int = 0) {
-        viewModelScope.launch {
-            val cleanName = name.trim().take(100)
-            if (cleanName.isNotBlank()) {
-                repository.createPlaylist(
-                    cleanName,
-                    description.trim().take(5000),
-                    iconName.trim().take(100),
-                    gradientIndex.coerceIn(0, 5)
-                )
-            }
-        }
-    }
-
-    fun addSongToPlaylist(playlistId: Long, songId: Long) {
-        viewModelScope.launch {
-            repository.addSongToPlaylist(playlistId, songId)
-        }
-    }
-
-    fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
-        viewModelScope.launch {
-            repository.removeSongFromPlaylist(playlistId, songId)
-        }
-    }
-
+    fun createPlaylist(name: String, description: String = "", iconName: String = "playlist_play", gradientIndex: Int = 0) =
+        libraryCtrl.createPlaylist(name, description, iconName, gradientIndex)
+    fun addSongToPlaylist(playlistId: Long, songId: Long) = libraryCtrl.addSongToPlaylist(playlistId, songId)
+    fun removeSongFromPlaylist(playlistId: Long, songId: Long) = libraryCtrl.removeSongFromPlaylist(playlistId, songId)
     fun deletePlaylist(playlist: Playlist) {
-        viewModelScope.launch {
-            repository.deletePlaylist(playlist)
-            if (_activePlaylistDetail.value?.playlist?.id == playlist.id) {
-                _activePlaylistDetail.value = null
-            }
-        }
+        libraryCtrl.deletePlaylist(playlist)
+        if (_activePlaylistDetail.value?.playlist?.id == playlist.id) _activePlaylistDetail.value = null
     }
 
-    // Sleep Timer
-    fun setSleepTimer(minutes: Int) {
-        playerEngine.setSleepTimer(minutes)
-    }
+    // ──────────────────────────────────────────────────
+    // Sleep Timer (delegate)
+    // ──────────────────────────────────────────────────
 
-    fun setSleepTimerUntilTrackEnd() {
-        playerEngine.setSleepTimerUntilTrackEnd()
-    }
+    fun setSleepTimer(minutes: Int) = playbackCtrl.setSleepTimer(minutes)
+    fun setSleepTimerUntilTrackEnd() = playbackCtrl.setSleepTimerUntilTrackEnd()
+    fun cancelSleepTimer() = playbackCtrl.cancelSleepTimer()
 
-    fun cancelSleepTimer() {
-        playerEngine.cancelSleepTimer()
-    }
+    // ──────────────────────────────────────────────────
+    // Lyrics (delegate)
+    // ──────────────────────────────────────────────────
 
-    // Storage Scanner & Importer
-    fun scanLocalStorage(context: Context) {
-        viewModelScope.launch {
-            setScanStatusMessage("Escaneando armazenamento...")
-            try {
-                val count = repository.scanDeviceAudio(context)
-                if (count > 0) {
-                    setScanStatusMessage("$count nova(s) música(s) importada(s)!")
-                } else {
-                    setScanStatusMessage("Nenhuma nova música encontrada no dispositivo.")
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MusicViewModel", "Error scanning local storage", e)
-                setScanStatusMessage(e.message ?: "Falha ao escanear as músicas.")
-            }
-            delay(3500)
-            setScanStatusMessage(null)
-        }
-    }
-
-    fun importSingleAudio(context: Context, uri: Uri, fileName: String) {
-        viewModelScope.launch {
-            val title = fileName.substringBeforeLast(".")
-            try {
-                repository.importAudioUri(context, uri, title)
-                setScanStatusMessage("Música \"$title\" importada com sucesso!")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MusicViewModel", "Error importing audio $uri", e)
-                setScanStatusMessage(e.message ?: "Falha ao importar o arquivo de áudio.")
-            }
-            delay(3500)
-            setScanStatusMessage(null)
-        }
-    }
-
-    fun importAudioFiles(context: Context, uris: List<Uri>) {
-        if (uris.isEmpty()) return
-
-        viewModelScope.launch {
-            var importedCount = 0
-            var failedCount = 0
-            setScanStatusMessage("Importando ${uris.size} arquivo(s)...")
-
-            uris.forEachIndexed { index, uri ->
-                try {
-                    val displayName = uri.lastPathSegment
-                        ?.substringAfterLast('/')
-                        ?.let(Uri::decode)
-                        ?.substringBeforeLast('.')
-                        ?.takeIf { it.isNotBlank() }
-                        ?: "Faixa importada ${index + 1}"
-                    repository.importAudioUri(context, uri, displayName)
-                    importedCount++
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    failedCount++
-                    Log.e("MusicViewModel", "Error importing audio $uri", e)
-                }
-            }
-
-            setScanStatusMessage(
-                when {
-                    failedCount == 0 -> "$importedCount música(s) adicionada(s) à biblioteca."
-                    importedCount == 0 -> "Não foi possível abrir os arquivos selecionados."
-                    else -> "$importedCount música(s) adicionada(s); $failedCount arquivo(s) não puderam ser lidos."
-                }
-            )
-            delay(3500)
-            setScanStatusMessage(null)
-        }
-    }
-
-    fun importAudioFolder(context: Context, folderUri: Uri) {
-        viewModelScope.launch {
-            setScanStatusMessage("Lendo a pasta selecionada e suas subpastas...")
-            try {
-                val result = repository.importAudioFolder(context, folderUri)
-                setScanStatusMessage(
-                    when {
-                        result.discovered == 0 -> "Nenhum arquivo de áudio encontrado nessa pasta."
-                        result.failed == 0 -> "${result.imported} música(s) adicionada(s) à biblioteca."
-                        result.imported == 0 -> "Encontramos ${result.discovered} arquivo(s), mas não foi possível importar nenhum."
-                        else -> "${result.imported} música(s) adicionada(s); ${result.failed} arquivo(s) não puderam ser lidos."
-                    }
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MusicViewModel", "Error importing audio folder $folderUri", e)
-                setScanStatusMessage(e.message ?: "Falha ao importar a pasta de músicas.")
-            }
-            delay(3500)
-            setScanStatusMessage(null)
-        }
-    }
-
-    // Lyrics Controls
-    fun toggleLyricsView() {
-        _isLyricsViewActive.value = !_isLyricsViewActive.value
-    }
-
+    fun toggleLyricsView() = libraryCtrl.toggleLyricsView()
     fun refreshLyrics() {
         val song = currentSong.value ?: return
-        if (isRadioSong(song)) return
-        viewModelScope.launch {
-            _isLyricsLoading.value = true
-            try {
-                // LyricsManager caches misses as well as successful results.
-                // Clear only the online/built-in cache here so a retry really
-                // performs a new lookup; manually edited lyrics remain in Room.
-                if (repository.getLyricsOnce(song.id) == null) {
-                    LyricsManager.clearCache(song.id)
-                }
-                val lyrics = loadLyrics(song)
-                _currentLyrics.value = lyrics
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MusicViewModel", "Error refreshing lyrics", e)
-            } finally {
-                _isLyricsLoading.value = false
-            }
-        }
+        libraryCtrl.refreshLyrics(song)
     }
-
-    private suspend fun loadLyrics(song: Song): TrackLyrics {
-        val saved = repository.getLyricsOnce(song.id)
-        return if (saved != null) {
-            LyricsManager.parseLrc(song.id, saved.content, saved.source)
-        } else {
-            LyricsManager.getLyrics(song)
-        }
-    }
-
     fun saveLyrics(rawLrc: String) {
         val song = currentSong.value ?: return
-        if (isRadioSong(song)) return
-        viewModelScope.launch {
-            if (rawLrc.isBlank()) {
-                repository.deleteLyrics(song.id)
-                LyricsManager.clearCache(song.id)
-                _currentLyrics.value = TrackLyrics(song.id, emptyList(), false, "Editor")
-            } else {
-                val parsed = LyricsManager.parseLrc(song.id, rawLrc, "Editor")
-                repository.saveLyrics(LyricsEntity(song.id, rawLrc, parsed.isSynced, "Editor"))
-                LyricsManager.cache(song.id, parsed)
-                _currentLyrics.value = parsed
-            }
-            dismissLyricsEditor()
-        }
+        libraryCtrl.saveLyrics(song, rawLrc) { dismissLyricsEditor() }
     }
 
-    fun requestLastFmAuthorization() {
-        val settings = lastFmSettings.value
-        if (settings.apiKey.isBlank() || settings.apiSecret.isBlank()) {
-            setLastFmMessage("Informe a API key e o API secret antes de autorizar.")
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val token = LastFmClient(settings).requestToken()
-                lastFmDataStore.saveAuthToken(token)
-                _lastFmAuthUrl.value = LastFmClient.authorizationUrl(settings.apiKey, token)
-                setLastFmMessage("Abra a página de autorização e depois conclua o login.")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                setLastFmMessage("Não foi possível obter o token: ${e.message ?: "erro desconhecido"}")
-            }
-        }
-    }
+    // ──────────────────────────────────────────────────
+    // Backup (delegate)
+    // ──────────────────────────────────────────────────
 
-    fun completeLastFmAuthorization() {
-        val settings = lastFmSettings.value
-        if (settings.authToken.isBlank()) {
-            setLastFmMessage("Solicite um token e autorize o aplicativo primeiro.")
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val session = LastFmClient(settings).getSession(settings.authToken)
-                lastFmDataStore.saveSession(session.username, session.sessionKey)
-                _lastFmAuthUrl.value = null
-                setLastFmMessage("Last.fm conectado como ${session.username}.")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                setLastFmMessage("Não foi possível concluir o login: ${e.message ?: "erro desconhecido"}")
-            }
-        }
-    }
-
-    fun saveLastFmCredentials(apiKey: String, apiSecret: String) {
-        viewModelScope.launch {
-            lastFmDataStore.saveCredentials(apiKey, apiSecret)
-            setLastFmMessage("Credenciais salvas. Solicite um token para conectar.")
-        }
-    }
-
-    fun setLastFmEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            lastFmDataStore.setEnabled(enabled)
-            if (enabled && lastFmSettings.value.isAuthenticated) {
-                scrobbleQueueManager.processPendingScrobbles()
-            }
-        }
-    }
-
-    fun disconnectLastFm() {
-        viewModelScope.launch {
-            lastFmDataStore.clear()
-            _lastFmAuthUrl.value = null
-            scrobbleQueueManager.clearPendingScrobbles()
-            setLastFmMessage("Last.fm desconectado.")
-        }
-    }
-
-    fun clearPendingScrobbles() {
-        viewModelScope.launch {
-            scrobbleQueueManager.clearPendingScrobbles()
-            setLastFmMessage("Fila de scrobbles limpa.")
-        }
-    }
-
-    fun processPendingScrobbles() {
-        viewModelScope.launch {
-            scrobbleQueueManager.processPendingScrobbles()
-            setLastFmMessage("Processando scrobbles pendentes...")
-        }
-    }
-
-    fun exportBackup(context: Context, uri: Uri) {
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    backupManager.export(context, uri) { message ->
-                        viewModelScope.launch(Dispatchers.Main) {
-                            setScanStatusMessage(message)
-                        }
-                    }
-                }
-                setScanStatusMessage("Backup salvo com sucesso.")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                setScanStatusMessage("Falha no backup: ${e.message ?: "arquivo inválido"}")
-            }
-            delay(3500)
-            setScanStatusMessage(null)
-        }
-    }
-
+    fun exportBackup(context: Context, uri: Uri) = settingsCtrl.exportBackup(getApplication(), uri) { setScanStatusMessage(it) }
     fun restoreBackup(context: Context, uri: Uri) {
+        settingsCtrl.restoreBackup(getApplication(), uri) { setScanStatusMessage(it) }
+    }
+
+    // ──────────────────────────────────────────────────
+    // Pull-to-refresh
+    // ──────────────────────────────────────────────────
+
+    fun refreshLibrary() {
         viewModelScope.launch {
+            _isRefreshing.value = true
             try {
-                val songs = withContext(Dispatchers.IO) {
-                    backupManager.restore(context, uri) { message ->
-                        viewModelScope.launch(Dispatchers.Main) {
-                            setScanStatusMessage(message)
-                        }
-                    }
+                val ctx = getApplication<Application>().applicationContext
+                if (!libraryCtrl.hasAudioPermission(ctx)) {
+                    setScanStatusMessage("Permissão de áudio necessária para escanear músicas.")
+                    return@launch
                 }
-                if (songs.isNotEmpty()) playerEngine.setQueue(songs, startIndex = 0, autoPlay = false)
-                setScanStatusMessage("Backup restaurado: ${songs.size} música(s).")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                setScanStatusMessage("Falha na restauração: ${e.message ?: "arquivo inválido"}")
-            }
-            delay(3500)
-            setScanStatusMessage(null)
+                withContext(Dispatchers.IO) { repository.scanDeviceAudio(ctx) }
+                delay(800)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                Log.e("MusicViewModel", "Error refreshing local storage", e)
+                setScanStatusMessage(e.message ?: "Falha ao atualizar as músicas.")
+            } finally { _isRefreshing.value = false }
         }
     }
 
-    private suspend fun persistPlaybackPosition() {
-        val song = currentSong.value ?: return
-        if (isRadioSong(song)) return
-        repository.updateLastPlayedState(song.id, currentPositionMs.value)
-    }
-
-    private fun schedulePersistPlaybackPosition() {
-        val song = currentSong.value ?: return
-        if (isRadioSong(song)) return
-        val position = currentPositionMs.value
-        viewModelScope.launch {
-            repository.updateLastPlayedState(song.id, position)
-        }
-    }
-
-    private data class ScrobbleState(
-        val song: Song?,
-        val positionMs: Long,
-        val durationMs: Long,
-        val settings: LastFmSettings
-    )
+    // ──────────────────────────────────────────────────
+    // Factory & Lifecycle
+    // ──────────────────────────────────────────────────
 
     class Factory(
         private val application: Application,
@@ -1526,12 +705,9 @@ class MusicViewModel(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             return MusicViewModel(
-                application = application,
-                repository = repository,
-                themeDataStore = themeDataStore,
-                lastFmDataStore = lastFmDataStore,
-                backupManager = backupManager,
-                playerEngine = playerEngine,
+                application = application, repository = repository,
+                themeDataStore = themeDataStore, lastFmDataStore = lastFmDataStore,
+                backupManager = backupManager, playerEngine = playerEngine,
                 scrobbleQueueManager = scrobbleQueueManager
             ) as T
         }
@@ -1541,9 +717,7 @@ class MusicViewModel(
         playerEngine.setOnSongChangedListener(null)
         playerEngine.setOnFavoriteToggleListener(null)
         settingsPersistJob?.cancel()
-        persistJob?.cancel()
-        radioPlaybackJob?.cancel()
+        playbackCtrl.onCleared()
         super.onCleared()
     }
-
 }

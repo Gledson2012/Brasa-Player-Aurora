@@ -3,8 +3,12 @@ package com.example
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
+import com.aistudio.musicplayer.qtzvka.R
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -40,8 +44,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,6 +96,8 @@ import com.example.ui.screens.PlaylistsScreen
 import com.example.ui.screens.ThemesScreen
 import com.example.ui.screens.TracksScreen
 import com.example.ui.screens.RadiosScreen
+import com.example.ui.screens.BrowserScreen
+import com.example.ui.screens.StatisticsScreen
 import com.example.ui.theme.MusicPlayerTheme
 import com.example.ui.viewmodel.MusicViewModel
 import com.example.ui.viewmodel.MusicUiState
@@ -103,10 +111,74 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        registerShortcuts()
+        handleShortcutIntent(intent)
 
         setContent {
             MusicPlayerRoot(viewModel = viewModel)
         }
+    }
+
+    private fun registerShortcuts() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            val shortcutManager = getSystemService(ShortcutManager::class.java) ?: return
+
+            val playFavorites = ShortcutInfo.Builder(this, "play_favorites")
+                .setShortLabel(getString(R.string.shortcut_play_favorites))
+                .setLongLabel(getString(R.string.shortcut_play_favorites_long))
+                .setIcon(Icon.createWithResource(this, R.drawable.ic_shortcut_favorites))
+                .setIntent(
+                    Intent(this, MainActivity::class.java).apply {
+                        action = Intent.ACTION_MAIN
+                        putExtra("shortcut_action", "play_favorites")
+                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                )
+                .build()
+
+            val shuffleAll = ShortcutInfo.Builder(this, "shuffle_all")
+                .setShortLabel(getString(R.string.shortcut_shuffle_all))
+                .setLongLabel(getString(R.string.shortcut_shuffle_all_long))
+                .setIcon(Icon.createWithResource(this, R.drawable.ic_shortcut_shuffle))
+                .setIntent(
+                    Intent(this, MainActivity::class.java).apply {
+                        action = Intent.ACTION_MAIN
+                        putExtra("shortcut_action", "shuffle_all")
+                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                )
+                .build()
+
+            val openRadio = ShortcutInfo.Builder(this, "open_radio")
+                .setShortLabel(getString(R.string.shortcut_open_radio))
+                .setLongLabel(getString(R.string.shortcut_open_radio_long))
+                .setIcon(Icon.createWithResource(this, R.drawable.ic_shortcut_radio))
+                .setIntent(
+                    Intent(this, MainActivity::class.java).apply {
+                        action = Intent.ACTION_MAIN
+                        putExtra("shortcut_action", "open_radio")
+                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                )
+                .build()
+
+            try {
+                shortcutManager.dynamicShortcuts = listOf(playFavorites, shuffleAll, openRadio)
+            } catch (e: Exception) {
+                // Some launchers may not support dynamic shortcuts
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleShortcutIntent(intent)
+    }
+
+    private fun handleShortcutIntent(intent: Intent?) {
+        val action = intent?.extras?.getString("shortcut_action") ?: return
+        // Defer to first composition via a shared flow so the ViewModel is ready
+        viewModel.handleShortcutAction(action)
     }
 }
 
@@ -127,6 +199,8 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     var songToDelete by remember { mutableStateOf<Song?>(null) }
     var songToRelink by remember { mutableStateOf<Song?>(null) }
     var showQueueSheet by remember { mutableStateOf(false) }
+    var showStatistics by remember { mutableStateOf(false) }
+    var showBrowser by remember { mutableStateOf(false) }
     var notificationPermissionRequested by remember { mutableStateOf(false) }
     val audioPermission = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -465,7 +539,12 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                         onPlayPause = { viewModel.togglePlayPause() },
                         onPlaySong = { songs, index -> viewModel.playSongFromList(songs, index) },
                         onOpenTracks = { viewModel.selectTab(1) },
-                        onOpenPlaylists = { viewModel.selectTab(2) }
+                        onOpenPlaylists = { viewModel.selectTab(2) },
+                        onOpenStatistics = {
+                            showStatistics = true
+                            viewModel.loadStatistics()
+                        },
+                        onOpenBrowser = { showBrowser = true }
                     )
 
                     1 -> TracksScreen(
@@ -574,6 +653,68 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                     )
                 }
                 } // AnimatedContent
+
+                // Statistics Overlay
+                if (showBrowser) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                    ) {
+                        BrowserScreen(
+                            songs = allSongs,
+                            onPlaySong = { songs, index ->
+                                showBrowser = false
+                                viewModel.playSongFromList(songs, index)
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        IconButton(
+                            onClick = { showBrowser = false },
+                            modifier = Modifier
+                                .statusBarsPadding()
+                                .padding(start = 4.dp)
+                                .align(Alignment.TopStart)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Voltar",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                }
+                if (showStatistics) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                    ) {
+                        StatisticsScreen(
+                            statistics = uiState.statistics,
+                            isLoading = uiState.isStatisticsLoading,
+                            onPlaySong = { songs, index ->
+                                showStatistics = false
+                                viewModel.playSongFromList(songs, index)
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // Back button
+                        IconButton(
+                            onClick = { showStatistics = false },
+                            modifier = Modifier
+                                .statusBarsPadding()
+                                .padding(start = 4.dp)
+                                .align(Alignment.TopStart)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Voltar",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                }
             }
         }
 

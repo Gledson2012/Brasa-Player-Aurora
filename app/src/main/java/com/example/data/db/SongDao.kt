@@ -6,6 +6,9 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.example.data.model.AlbumStat
+import com.example.data.model.ArtistStat
+import com.example.data.model.GenreStat
 import com.example.data.model.Song
 import kotlinx.coroutines.flow.Flow
 
@@ -127,4 +130,71 @@ interface SongDao {
             CASE WHEN :sort = 'RECENTLY_ADDED' THEN songs.addedTimestamp END DESC
     """)
     fun searchAndSortSongsFts(query: String, sort: String): Flow<List<Song>>
+
+    // ---- Statistics Queries ----
+
+    @Query("SELECT COUNT(*) FROM songs")
+    suspend fun getTotalSongCount(): Int
+
+    @Query("SELECT COUNT(*) FROM songs WHERE isFavorite = 1")
+    suspend fun getFavoriteSongCount(): Int
+
+    @Query("SELECT SUM(playCount) FROM songs")
+    suspend fun getTotalPlayCount(): Int
+
+    @Query("SELECT SUM(durationMs) FROM songs")
+    suspend fun getTotalDurationMs(): Long
+
+    @Query("SELECT SUM(durationMs) FROM songs WHERE playCount > 0")
+    suspend fun getTotalListenedDurationMs(): Long
+
+    @Query("SELECT artist, COUNT(*) as count FROM songs WHERE playCount > 0 GROUP BY artist ORDER BY count DESC LIMIT :limit")
+    suspend fun getTopArtists(limit: Int = 10): List<ArtistStat>
+
+    @Query("SELECT genre, COUNT(*) as count FROM songs WHERE playCount > 0 GROUP BY genre ORDER BY count DESC LIMIT :limit")
+    suspend fun getTopGenres(limit: Int = 10): List<GenreStat>
+
+    @Query("SELECT album, artist, COUNT(*) as count FROM songs WHERE playCount > 0 GROUP BY album, artist ORDER BY count DESC LIMIT :limit")
+    suspend fun getTopAlbums(limit: Int = 10): List<AlbumStat>
+
+    @Query("SELECT * FROM songs WHERE playCount > 0 ORDER BY playCount DESC LIMIT :limit")
+    suspend fun getMostPlayedSongsOnce(limit: Int = 30): List<Song>
+
+    @Query("SELECT COUNT(DISTINCT artist) FROM songs")
+    suspend fun getUniqueArtistCount(): Int
+
+    @Query("SELECT COUNT(DISTINCT album) FROM songs")
+    suspend fun getUniqueAlbumCount(): Int
+
+    @Query("SELECT COUNT(DISTINCT genre) FROM songs WHERE genre != 'Geral' AND genre != ''")
+    suspend fun getUniqueGenreCount(): Int
+
+    // ---- Artist/Album/Genre Navigation ----
+
+    @Query("SELECT DISTINCT artist FROM songs ORDER BY artist ASC")
+    suspend fun getAllArtists(): List<String>
+
+    @Query("SELECT DISTINCT album FROM songs ORDER BY album ASC")
+    suspend fun getAllAlbums(): List<String>
+
+    @Query("SELECT DISTINCT genre FROM songs WHERE genre != '' ORDER BY genre ASC")
+    suspend fun getAllGenres(): List<String>
+
+    @Query("SELECT * FROM songs WHERE artist = :artist ORDER BY album ASC, title ASC")
+    fun getSongsByArtist(artist: String): Flow<List<Song>>
+
+    @Query("SELECT * FROM songs WHERE album = :album ORDER BY title ASC")
+    fun getSongsByAlbum(album: String): Flow<List<Song>>
+
+    @Query("SELECT * FROM songs WHERE genre = :genre ORDER BY artist ASC, title ASC")
+    fun getSongsByGenre(genre: String): Flow<List<Song>>
+
+    @Query("SELECT COUNT(*) FROM songs WHERE artist = :artist")
+    suspend fun getSongCountByArtist(artist: String): Int
+
+    @Query("SELECT COUNT(*) FROM songs WHERE album = :album")
+    suspend fun getSongCountByAlbum(album: String): Int
+
+    @Query("SELECT COUNT(*) FROM songs WHERE genre = :genre")
+    suspend fun getSongCountByGenre(genre: String): Int
 }

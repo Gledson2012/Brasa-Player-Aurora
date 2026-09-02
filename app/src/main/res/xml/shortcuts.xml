@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Play Favorites -->
+    <shortcut
+        android:shortcutId="play_favorites"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_favorites"
+        android:shortcutShortLabel="@string/shortcut_play_favorites"
+        android:shortcutLongLabel="@string/shortcut_play_favorites_long">
+        <intent
+            android:action="com.aistudio.musicplayer.qtzvka.ACTION_SHORTCUT"
+            android:targetPackage="com.aistudio.musicplayer.qtzvka"
+            android:targetClass="com.example.MainActivity">
+            <extra
+                android:name="shortcut_action"
+                android:value="play_favorites" />
+        </intent>
+    </shortcut>
+
+    <!-- Shuffle All -->
+    <shortcut
+        android:shortcutId="shuffle_all"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_shuffle"
+        android:shortcutShortLabel="@string/shortcut_shuffle_all"
+        android:shortcutLongLabel="@string/shortcut_shuffle_all_long">
+        <intent
+            android:action="com.aistudio.musicplayer.qtzvka.ACTION_SHORTCUT"
+            android:targetPackage="com.aistudio.musicplayer.qtzvka"
+            android:targetClass="com.example.MainActivity">
+            <extra
+                android:name="shortcut_action"
+                android:value="shuffle_all" />
+        </intent>
+    </shortcut>
+
+    <!-- Open Radio -->
+    <shortcut
+        android:shortcutId="open_radio"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_radio"
+        android:shortcutShortLabel="@string/shortcut_open_radio"
+        android:shortcutLongLabel="@string/shortcut_open_radio_long">
+        <intent
+            android:action="com.aistudio.musicplayer.qtzvka.ACTION_SHORTCUT"
+            android:targetPackage="com.aistudio.musicplayer.qtzvka"
+            android:targetClass="com.example.MainActivity">
+            <extra
+                android:name="shortcut_action"
+                android:value="open_radio" />
+        </intent>
+    </shortcut>
+
+</shortcuts>

@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.content.Intent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode as AnimRepeatMode
@@ -255,6 +256,28 @@ fun FullPlayerSheet(
                         onDismissRequest = { showMenu = false }
                     ) {
                         if (!isLiveRadio) {
+                            DropdownMenuItem(
+                                text = { Text("Compartilhar") },
+                                onClick = {
+                                    showMenu = false
+                                    val shareText = buildString {
+                                        appendLine("🎵 ${song.title}")
+                                        appendLine("🎤 ${song.artist}")
+                                        appendLine("💿 ${song.album}")
+                                        if (song.genre.isNotBlank() && song.genre != "Geral") {
+                                            appendLine("🏷️ ${song.genre}")
+                                        }
+                                        appendLine()
+                                        appendLine("Tocado no Brasa Player Aurora")
+                                    }
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                        putExtra(Intent.EXTRA_SUBJECT, "${song.title} - ${song.artist}")
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Compartilhar música"))
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Adicionar à Playlist") },
                                 onClick = {

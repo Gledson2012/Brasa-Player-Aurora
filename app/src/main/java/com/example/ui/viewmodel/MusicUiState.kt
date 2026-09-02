@@ -6,6 +6,7 @@ import com.example.data.model.EqualizerState
 import com.example.data.model.LastFmSettings
 import com.example.data.model.PlaylistWithSongs
 import com.example.data.model.Song
+import com.example.data.model.ListeningStatistics
 import com.example.data.model.ThemeConfig
 
 /** Immutable snapshot consumed by the Compose UI. */
@@ -53,5 +54,7 @@ data class MusicUiState(
     val showSleepTimerDialog: Boolean = false,
     val showSpeedDialog: Boolean = false,
     val showLastFmDialog: Boolean = false,
-    val showLyricsEditor: Boolean = false
+    val showLyricsEditor: Boolean = false,
+    val statistics: ListeningStatistics? = null,
+    val isStatisticsLoading: Boolean = false
 )

@@ -1,6 +1,8 @@
 package com.example.audio
 
+import android.bluetooth.BluetoothDevice
 import android.content.Context
+import android.content.IntentFilter
 import android.net.Uri
 import android.util.Log
 import androidx.annotation.OptIn
@@ -109,7 +111,13 @@ class AudioPlayerEngine(
     private var onSongChangedCallback: ((Song) -> Unit)? = null
     private var onFavoriteToggleCallback: ((Song) -> Unit)? = null
 
+    // Bluetooth auto-pause: remember state before disconnect to resume on reconnect
+    private var wasPlayingBeforeBluetoothDisconnect = false
+    private var bluetoothReceiver: BluetoothReceiver? = null
+
     companion object {
+        private const val TAG = "AudioPlayerEngine"
+
         @Volatile
         private var INSTANCE: AudioPlayerEngine? = null
 
@@ -126,6 +134,35 @@ class AudioPlayerEngine(
 
     init {
         initExoPlayer()
+        registerBluetoothReceiver()
+    }
+
+    private fun registerBluetoothReceiver() {
+        bluetoothReceiver = BluetoothReceiver(
+            onBluetoothDisconnected = {
+                if (_isPlaying.value) {
+                    wasPlayingBeforeBluetoothDisconnect = true
+                    pause()
+                    Log.d(TAG, "Bluetooth disconnected: pausing playback")
+                }
+            },
+            onBluetoothConnected = {
+                if (wasPlayingBeforeBluetoothDisconnect) {
+                    wasPlayingBeforeBluetoothDisconnect = false
+                    resume()
+                    Log.d(TAG, "Bluetooth connected: resuming playback")
+                }
+            }
+        )
+        val filter = IntentFilter().apply {
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+        }
+        try {
+            context.registerReceiver(bluetoothReceiver, filter)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not register Bluetooth receiver", e)
+        }
     }
 
     private fun initExoPlayer(): ExoPlayer {
@@ -1070,6 +1107,14 @@ class AudioPlayerEngine(
     }
 
     fun release() {
+        try {
+            bluetoothReceiver?.let {
+                context.unregisterReceiver(it)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not unregister Bluetooth receiver", e)
+        }
+        bluetoothReceiver = null
         stopCurrentPlayback()
         engineJob.cancel()
         onSongChangedCallback = null

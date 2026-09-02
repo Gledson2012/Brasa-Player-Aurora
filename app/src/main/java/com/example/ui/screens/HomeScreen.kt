@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -68,6 +70,8 @@ fun HomeScreen(
     onPlaySong: (List<Song>, Int) -> Unit,
     onOpenTracks: () -> Unit,
     onOpenPlaylists: () -> Unit,
+    onOpenStatistics: () -> Unit = {},
+    onOpenBrowser: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val recent = recentlyPlayed.ifEmpty { allSongs }.take(12)
@@ -210,6 +214,34 @@ fun HomeScreen(
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                     ),
                     onClick = onOpenPlaylists,
+                    modifier = Modifier.weight(1f)
+                )
+                QuickActionCard(
+                    title = "Estatísticas",
+                    subtitle = "Sua jornada",
+                    icon = Icons.Default.BarChart,
+                    colors = listOf(
+                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f),
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    ),
+                    onClick = onOpenStatistics,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                QuickActionCard(
+                    title = "Navegar",
+                    subtitle = "Artista, Álbum, Gênero",
+                    icon = Icons.Default.Category,
+                    colors = listOf(
+                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+                    ),
+                    onClick = onOpenBrowser,
                     modifier = Modifier.weight(1f)
                 )
             }

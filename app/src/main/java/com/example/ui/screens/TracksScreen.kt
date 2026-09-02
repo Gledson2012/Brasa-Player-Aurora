@@ -68,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
 import com.example.data.model.Song
 import com.example.ui.components.SongCoverArt
 import com.example.ui.components.SectionHeader
@@ -414,6 +415,28 @@ fun TrackListItem(
                     expanded = showTrackMenu,
                     onDismissRequest = { showTrackMenu = false }
                 ) {
+                    DropdownMenuItem(
+                        text = { Text("Compartilhar") },
+                        onClick = {
+                            showTrackMenu = false
+                            val shareText = buildString {
+                                appendLine("🎵 ${song.title}")
+                                appendLine("🎤 ${song.artist}")
+                                appendLine("💿 ${song.album}")
+                                if (song.genre.isNotBlank() && song.genre != "Geral") {
+                                    appendLine("🏷️ ${song.genre}")
+                                }
+                                appendLine()
+                                appendLine("Tocado no Brasa Player Aurora")
+                            }
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                putExtra(Intent.EXTRA_SUBJECT, "${song.title} - ${song.artist}")
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Compartilhar música"))
+                        }
+                    )
                     DropdownMenuItem(
                         text = { Text("Adicionar à Playlist") },
                         onClick = {

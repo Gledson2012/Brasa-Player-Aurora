@@ -17,4 +17,19 @@
     <string name="playback_notification_channel_name">Reprodução de Música</string>
     <string name="playback_notification_channel_desc">Controles de reprodução de áudio e notificações de mídia em segundo plano</string>
     <string name="playback_notification_idle_text">Brasa Player Aurora preparado para reprodução</string>
+    <!-- App Shortcuts -->
+    <string name="shortcut_play_favorites">Tocar Favoritas</string>
+    <string name="shortcut_play_favorites_long">Reproduzir suas músicas favoritas</string>
+    <string name="shortcut_shuffle_all">Aleatório</string>
+    <string name="shortcut_shuffle_all_long">Embaralhar e tocar todas as faixas</string>
+    <string name="shortcut_open_radio">Rádio</string>
+    <string name="shortcut_open_radio_long">Abrir rádios ao vivo</string>
+    <!-- Widget -->
+    <string name="widget_description">Controle de reprodução rápido na tela inicial</string>
+    <string name="widget_no_song">Nenhuma faixa selecionada</string>
+    <string name="widget_default_artist">Brasa Player Aurora</string>
+    <string name="widget_album_art_desc">Capa do álbum</string>
+    <string name="widget_prev_desc">Faixa anterior</string>
+    <string name="widget_play_pause_desc">Reproduzir ou pausar</string>
+    <string name="widget_next_desc">Próxima faixa</string>
 </resources>
