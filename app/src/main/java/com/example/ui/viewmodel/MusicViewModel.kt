@@ -326,7 +326,6 @@ class MusicViewModel(
         playbackCtrl.onScanStatusMessage = { setScanStatusMessage(it) }
         playbackCtrl.onFullPlayerOpen = { _isFullPlayerOpen.value = true }
         equalizerCtrl.onSettingsChanged = { persistUserSettings() }
-        libraryCtrl.setScanStatusMessage = { setScanStatusMessage(it) }
 
         // Player engine listeners
         playerEngine.setOnSongChangedListener { song ->

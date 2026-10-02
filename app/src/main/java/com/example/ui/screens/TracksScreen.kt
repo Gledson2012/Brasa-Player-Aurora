@@ -58,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.example.ui.viewmodel.delegate.SortOption
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -75,7 +76,6 @@ import com.example.ui.components.SectionHeader
 import com.example.ui.components.TrackItemSkeleton
 import com.example.ui.components.formatTimeMs
 import com.example.ui.components.hapticTick
-import com.example.ui.viewmodel.SortOption
 
 private enum class TrackFilter(val label: String) {
     ALL("Todas"),

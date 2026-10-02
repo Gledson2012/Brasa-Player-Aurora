@@ -96,7 +96,7 @@ class EqualizerEngine {
                         val closestBand = (0 until numBands).minByOrNull { band ->
                             kotlin.math.abs((eq.getCenterFreq(band.toShort()) / 1000) - targetHz)
                         } ?: return@forEachIndexed
-                        val milliBels = (safeState.bandLevels[targetIndex] * 1000).toShort()
+                        val milliBels = (safeState.bandLevels[targetIndex] * 100).toShort()
                             .coerceIn(minLevel, maxLevel)
                         eq.setBandLevel(closestBand.toShort(), milliBels)
                     }

@@ -21,7 +21,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
         // Ensure the playback service is running
         MusicPlaybackService.startService(context)
 
-        val engine = AudioPlayerEngine.getExistingInstance() ?: return
+        val engine = AudioPlayerEngine.getOrCreateInstance(context.applicationContext)
 
         when (intent.action) {
             ACTION_PLAY_PAUSE -> engine.togglePlayPause()

@@ -8,6 +8,7 @@ import com.example.data.model.PlaylistWithSongs
 import com.example.data.model.Song
 import com.example.data.model.ListeningStatistics
 import com.example.data.model.ThemeConfig
+import com.example.ui.viewmodel.delegate.SortOption
 
 /** Immutable snapshot consumed by the Compose UI. */
 data class MusicUiState(

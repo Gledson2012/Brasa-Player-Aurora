@@ -29,7 +29,7 @@ class AudioWaveformCapture(
                                 val start = bucket * waveform.size / bucketCount
                                 val end = ((bucket + 1) * waveform.size / bucketCount).coerceAtLeast(start + 1)
                                 waveform.copyOfRange(start, end)
-                                    .map { abs(it.toInt()) / 128f }
+                                    .map { abs((it.toInt() and 0xFF) - 128) / 128f }
                                     .average()
                                     .toFloat()
                                     .coerceIn(0.05f, 1f)
