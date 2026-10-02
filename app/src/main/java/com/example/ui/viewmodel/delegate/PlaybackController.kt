@@ -183,10 +183,15 @@ class PlaybackController(
 
             ensurePlaybackService()
             val stationKey = radioId ?: streamUrl ?: title
+            val displayArtist = when {
+                category.contains("•") -> category
+                category.isNotBlank() -> "Rádio • $category"
+                else -> "Rádio ao vivo"
+            }
             val radioSong = Song(
                 id = radioSongId(stationKey),
                 title = title,
-                artist = "Radios.com.br • $category",
+                artist = displayArtist,
                 album = "Rádio ao vivo",
                 durationMs = 0L,
                 mediaUri = playableStreamUrl,

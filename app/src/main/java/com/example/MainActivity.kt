@@ -80,6 +80,7 @@ import com.example.data.lyrics.LyricsManager
 import com.example.data.model.Song
 import com.example.di.ServiceLocator
 import com.example.ui.components.AddToPlaylistDialog
+import com.example.ui.components.AuroraNavBar
 import com.example.ui.components.CreatePlaylistDialog
 import com.example.ui.components.EditSongDialog
 import com.example.ui.components.FullPlayerSheet
@@ -410,110 +411,17 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                         )
                     }
 
-                    // Navigation Bar
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                        tonalElevation = 8.dp,
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                                shape = RoundedCornerShape(24.dp)
-                            )
-                            .testTag("main_bottom_nav")
-                    ) {
-                        NavigationBarItem(
-                            selected = selectedTab == 0,
-                            onClick = { viewModel.selectTab(0) },
-                            icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "Início") },
-                            label = { Text("Início", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) },
-                            alwaysShowLabel = false,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
+                    // Modern Aurora Floating Navigation Bar
+                    val isRadioPlaying = isPlaying && currentSong?.sourceKey?.startsWith("radio:") == true
+                    val isSongPlaying = isPlaying && !isRadioPlaying
 
-                        NavigationBarItem(
-                            selected = selectedTab == 1,
-                            onClick = { viewModel.selectTab(1) },
-                            icon = { Icon(imageVector = Icons.Default.MusicNote, contentDescription = "Músicas") },
-                            label = { Text("Músicas", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) },
-                            alwaysShowLabel = false,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-
-                        NavigationBarItem(
-                            selected = selectedTab == 2,
-                            onClick = { viewModel.selectTab(2) },
-                            icon = { Icon(imageVector = Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "Playlists") },
-                            label = { Text("Playlists", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) },
-                            alwaysShowLabel = false,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-
-                        NavigationBarItem(
-                            selected = selectedTab == 3,
-                            onClick = { viewModel.selectTab(3) },
-                            icon = { Icon(imageVector = Icons.Default.GraphicEq, contentDescription = "Equalizador") },
-                            label = { Text("Equalizador", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) },
-                            alwaysShowLabel = false,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-
-                        NavigationBarItem(
-                            selected = selectedTab == 4,
-                            onClick = { viewModel.selectTab(4) },
-                            icon = { Icon(imageVector = Icons.Default.Palette, contentDescription = "Temas") },
-                            label = { Text("Temas", fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Normal) },
-                            alwaysShowLabel = false,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-
-                        NavigationBarItem(
-                            selected = selectedTab == 5,
-                            onClick = { viewModel.selectTab(5) },
-                            icon = { Icon(imageVector = Icons.Default.Radio, contentDescription = "Rádio") },
-                            label = { Text("Rádio", fontWeight = if (selectedTab == 5) FontWeight.Bold else FontWeight.Normal) },
-                            alwaysShowLabel = false,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
+                    AuroraNavBar(
+                        selectedTab = selectedTab,
+                        onTabSelected = { viewModel.selectTab(it) },
+                        isPlayingSong = isSongPlaying,
+                        isPlayingRadio = isRadioPlaying,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
                 }
             }
         ) { innerPadding ->
@@ -532,6 +440,8 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                     0 -> HomeScreen(
                         currentSong = currentSong,
                         isPlaying = isPlaying,
+                        currentPositionMs = currentPositionMs,
+                        durationMs = durationMs,
                         allSongs = allSongs,
                         recentlyPlayed = recentlyPlayed,
                         favoriteSongs = favoriteSongs,
@@ -539,8 +449,30 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                         playlists = allPlaylistsWithSongs,
                         onPlayPause = { viewModel.togglePlayPause() },
                         onPlaySong = { songs, index -> viewModel.playSongFromList(songs, index) },
+                        onOpenPlayer = { viewModel.openFullPlayer() },
+                        onToggleFavorite = { viewModel.toggleFavorite(it) },
+                        onShuffleAll = {
+                            if (allSongs.isNotEmpty()) {
+                                viewModel.playSongFromList(allSongs.shuffled(), 0)
+                            }
+                        },
+                        onPlayFavorites = {
+                            if (favoriteSongs.isNotEmpty()) {
+                                viewModel.playSongFromList(favoriteSongs, 0)
+                            }
+                        },
                         onOpenTracks = { viewModel.selectTab(1) },
                         onOpenPlaylists = { viewModel.selectTab(2) },
+                        onOpenEqualizer = { viewModel.selectTab(3) },
+                        onOpenRadio = { viewModel.selectTab(5) },
+                        onCreatePlaylist = { viewModel.showCreatePlaylistDialog() },
+                        onScanMedia = {
+                            if (ContextCompat.checkSelfPermission(context, audioPermission) == PackageManager.PERMISSION_GRANTED) {
+                                viewModel.scanLocalStorage(context)
+                            } else {
+                                requestAudioPermissionLauncher.launch(audioPermission)
+                            }
+                        },
                         onOpenStatistics = {
                             showStatistics = true
                             viewModel.loadStatistics()
@@ -650,7 +582,10 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
 
                     5 -> RadiosScreen(
                         onOpenLink = openRadioLink,
-                        onPlayStation = playRadioStation
+                        onPlayStation = playRadioStation,
+                        currentPlayingSong = currentSong,
+                        isPlaying = isPlaying,
+                        onTogglePlayPause = { viewModel.togglePlayPause() }
                     )
                 }
                 } // AnimatedContent
