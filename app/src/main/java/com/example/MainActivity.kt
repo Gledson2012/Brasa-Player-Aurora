@@ -30,8 +30,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -51,6 +53,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -74,6 +77,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.lyrics.LyricsManager
@@ -103,6 +107,7 @@ import com.example.ui.theme.MusicPlayerTheme
 import com.example.ui.viewmodel.MusicViewModel
 import com.example.ui.viewmodel.MusicUiState
 import com.example.ui.viewmodel.delegate.SortOption
+import com.example.widget.MusicWidgetProvider
 
 class MainActivity : ComponentActivity() {
 
@@ -116,8 +121,13 @@ class MainActivity : ComponentActivity() {
         registerShortcuts()
         handleShortcutIntent(intent)
 
+        // Force ViewModel/engine creation, then attach the widget observer so
+        // home-screen controls stay in sync after the app starts.
+        val currentViewModel = viewModel
+        MusicWidgetProvider.ensureObserving(applicationContext)
+
         setContent {
-            MusicPlayerRoot(viewModel = viewModel)
+            MusicPlayerRoot(viewModel = currentViewModel)
         }
     }
 
@@ -314,6 +324,15 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
         viewModel.closeFullPlayer()
     }
 
+    // Full-screen overlays sit above the tab content, so Back must close them
+    // before the activity is allowed to finish.
+    BackHandler(enabled = showBrowser) {
+        showBrowser = false
+    }
+    BackHandler(enabled = showStatistics) {
+        showStatistics = false
+    }
+
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri -> uri?.let { viewModel.exportBackup(context, it) } }
@@ -362,15 +381,13 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     AnimatedContent(
         targetState = onboardingCompleted,
         transitionSpec = {
-            if (targetState) {
-                fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(300))
-            } else {
-                fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(300))
-            }
+            fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(300))
         },
         label = "onboarding_transition"
     ) { completed ->
-    if (!completed) {
+    if (completed == null) {
+        OnboardingLoadingScreen()
+    } else if (!completed) {
         OnboardingScreen(
             onComplete = { viewModel.completeOnboarding() }
         )
@@ -918,4 +935,35 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     }
     } // end else (onboarding)
     } // end AnimatedContent
+}
+
+/**
+ * Neutral loading screen shown until the persisted onboarding flag is read.
+ * It prevents a returning user from briefly seeing the onboarding flow.
+ */
+@Composable
+private fun OnboardingLoadingScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(18.dp))
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Carregando sua biblioteca…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }

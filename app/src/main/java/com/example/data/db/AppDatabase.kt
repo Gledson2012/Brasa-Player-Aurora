@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.aistudio.musicplayer.qtzvka.BuildConfig
 import com.example.data.model.CustomPresetEntity
 import com.example.data.model.LyricsEntity
 import com.example.data.model.PendingScrobbleEntity
@@ -221,6 +222,11 @@ abstract class AppDatabase : RoomDatabase() {
 
         suspend fun populateInitialData(songDao: SongDao, playlistDao: PlaylistDao, userSettingsDao: UserSettingsDao) {
             userSettingsDao.saveUserSettings(UserSettingsEntity())
+
+            // Demo tracks are useful for evaluating the player, but a release
+            // install should start with an empty, honest library.
+            if (!BuildConfig.DEBUG) return
+
             val initialSongs = listOf(
                 Song(
                     title = "Neon Horizon",

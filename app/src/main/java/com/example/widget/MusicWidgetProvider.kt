@@ -7,15 +7,20 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.RemoteViews
 import com.aistudio.musicplayer.qtzvka.R
 import com.example.audio.AudioPlayerEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Home screen widget showing current song info and playback controls.
@@ -25,6 +30,31 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private var scope: CoroutineScope? = null
+        private var observationJob: Job? = null
+
+        private fun getScope(): CoroutineScope =
+            scope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
+                .also { scope = it }
+
+        /**
+         * Starts reactive widget updates if a widget exists and the playback
+         * engine is already alive. Safe to call repeatedly.
+         */
+        fun ensureObserving(context: Context) {
+            if (observationJob?.isActive == true) return
+
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val componentName = ComponentName(context, MusicWidgetProvider::class.java)
+            if (appWidgetManager.getAppWidgetIds(componentName).isEmpty()) return
+
+            val engine = AudioPlayerEngine.getExistingInstance() ?: return
+            observationJob = getScope().launch {
+                combine(engine.currentSong, engine.isPlaying) { song, playing -> song to playing }
+                    .collectLatest {
+                        updateAllWidgets(context)
+                    }
+            }
+        }
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -45,43 +75,27 @@ class MusicWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        for (widgetId in appWidgetIds) {
-            updateWidget(context, appWidgetManager, widgetId)
+        getScope().launch {
+            for (widgetId in appWidgetIds) {
+                updateWidget(context, appWidgetManager, widgetId)
+            }
         }
-        startObserving(context)
+        ensureObserving(context)
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        startObserving(context)
+        ensureObserving(context)
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        scope?.let {
-            // Only cancel if no widgets remain
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val componentName = ComponentName(context, MusicWidgetProvider::class.java)
-            if (appWidgetManager.getAppWidgetIds(componentName).isEmpty()) {
-                (it as? kotlinx.coroutines.CoroutineScope)?.let { /* scope.cancel() */ }
-            }
-        }
+        observationJob = null
+        scope?.cancel()
+        scope = null
     }
 
-    private fun startObserving(context: Context) {
-        if (scope != null) return
-
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-        val engine = AudioPlayerEngine.getExistingInstance() ?: return
-
-        scope?.launch {
-            engine.currentSong.collectLatest {
-                updateAllWidgets(context)
-            }
-        }
-    }
-
-    private fun updateWidget(
+    private suspend fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
         widgetId: Int
@@ -96,19 +110,17 @@ class MusicWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_title, song.title)
             views.setTextViewText(R.id.widget_artist, song.artist)
 
-            // Try to load album art
+            // Try to load album art. Decode off the main thread and downsample
+            // large artwork: RemoteViews bitmaps travel through Binder and can
+            // otherwise exceed the transaction limit or cause an OOM.
             val coverUri = song.coverUri
             if (!coverUri.isNullOrBlank()) {
-                try {
-                    val bitmap: Bitmap? = context.contentResolver.openInputStream(Uri.parse(coverUri))?.use { stream ->
-                        android.graphics.BitmapFactory.decodeStream(stream)
-                    }
-                    if (bitmap != null) {
-                        views.setImageViewBitmap(R.id.widget_album_art, bitmap)
-                    } else {
-                        views.setImageViewResource(R.id.widget_album_art, R.drawable.cover_synthwave)
-                    }
-                } catch (_: Exception) {
+                val bitmap = withContext(Dispatchers.IO) {
+                    runCatching { decodeWidgetArtwork(context, Uri.parse(coverUri)) }.getOrNull()
+                }
+                if (bitmap != null) {
+                    views.setImageViewBitmap(R.id.widget_album_art, bitmap)
+                } else {
                     views.setImageViewResource(R.id.widget_album_art, R.drawable.cover_synthwave)
                 }
             } else {
@@ -157,6 +169,26 @@ class MusicWidgetProvider : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_album_art, pendingLaunch)
 
         appWidgetManager.updateAppWidget(widgetId, views)
+    }
+
+    private fun decodeWidgetArtwork(context: Context, uri: Uri): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, bounds)
+        } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sampleSize = 1
+        while (
+            bounds.outWidth / sampleSize > 256 ||
+            bounds.outHeight / sampleSize > 256
+        ) {
+            sampleSize *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        return context.contentResolver.openInputStream(uri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, options)
+        }
     }
 
     private fun createActionIntent(context: Context, action: String): PendingIntent {

@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -67,14 +68,11 @@ class MusicPlaybackService : MediaLibraryService() {
         fun startService(context: Context) {
             val intent = Intent(context, MusicPlaybackService::class.java)
             try {
-                // Media3's MediaSessionService promotes itself to a foreground
-                // service with a media notification as soon as playback starts.
-                // Using startForegroundService() here can crash the app with
-                // ForegroundServiceDidNotStartInTimeException because the service
-                // may not call startForeground() within the system's 5s window
-                // when the player is still empty/preparing. Plain startService()
-                // lets Media3 handle the foreground promotion safely.
-                context.startService(intent)
+                // onStartCommand() publishes an idle notification immediately,
+                // so the 5-second foreground-service window is covered even
+                // when the player is empty. This also works when a widget
+                // starts playback while the app is in the background.
+                ContextCompat.startForegroundService(context, intent)
             } catch (e: Exception) {
                 Log.e("MusicPlaybackService", "Error starting MusicPlaybackService", e)
             }

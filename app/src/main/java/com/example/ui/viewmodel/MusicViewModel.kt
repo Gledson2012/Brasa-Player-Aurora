@@ -143,7 +143,7 @@ class MusicViewModel(
     // Settings (from SettingsController)
     val themeConfig: StateFlow<ThemeConfig> = settingsCtrl.themeConfig
     val themeSettings: StateFlow<ThemeConfig> = settingsCtrl.themeSettings
-    val onboardingCompleted: StateFlow<Boolean> = settingsCtrl.onboardingCompleted
+    val onboardingCompleted: StateFlow<Boolean?> = settingsCtrl.onboardingCompleted
     val lastFmSettings: StateFlow<LastFmSettings> = settingsCtrl.lastFmSettings
     val lastFmMessage: StateFlow<String?> = settingsCtrl.lastFmMessage
     val lastFmAuthUrl: StateFlow<String?> = settingsCtrl.lastFmAuthUrl
@@ -232,7 +232,7 @@ class MusicViewModel(
         val activePlaylistDetail: PlaylistWithSongs?
     )
     private data class AppStatus(
-        val onboardingCompleted: Boolean, val isLoading: Boolean,
+        val onboardingCompleted: Boolean?, val isLoading: Boolean,
         val isRefreshing: Boolean, val searchQuery: String, val sortOption: SortOption
     )
     private data class Messages(

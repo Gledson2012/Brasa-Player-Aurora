@@ -34,6 +34,12 @@ class ProceduralAudioGenerator {
     private var trackDurationMs = 204000L
     private var playbackSpeed = 1.0f
 
+    // Kept so an in-progress seek can re-create the playback pipeline at the
+    // requested sample offset while preserving the caller's callbacks.
+    private var activeScope: CoroutineScope? = null
+    private var progressListener: ((currentMs: Long, durationMs: Long) -> Unit)? = null
+    private var completionListener: (() -> Unit)? = null
+
     // Equalizer band gains in dB (-10 to +10)
     var bandGains = floatArrayOf(0f, 0f, 0f, 0f, 0f)
     var bassBoostAmount = 0.3f
@@ -59,6 +65,9 @@ class ProceduralAudioGenerator {
         onProgress: (currentMs: Long, durationMs: Long) -> Unit,
         onCompletion: () -> Unit
     ) {
+        activeScope = scope
+        progressListener = onProgress
+        completionListener = onCompletion
         stop()
         currentPreset = preset
         trackDurationMs = durationMs.coerceAtLeast(0L)
@@ -269,7 +278,24 @@ class ProceduralAudioGenerator {
     }
 
     fun seekTo(positionMs: Long) {
-        currentPositionMs = positionMs.coerceIn(0L, trackDurationMs)
+        val target = positionMs.coerceIn(0L, trackDurationMs)
+        currentPositionMs = target
+
+        // Seeking while paused only updates the resume position. While
+        // playing, the AudioTrack must be recreated at the new sample offset;
+        // otherwise the UI moves but the generated audio keeps going.
+        if (!isPlaying) return
+        val scope = activeScope ?: return
+        val onProgress = progressListener ?: return
+        val onCompletion = completionListener ?: return
+        start(
+            preset = currentPreset,
+            durationMs = trackDurationMs,
+            startPositionMs = target,
+            scope = scope,
+            onProgress = onProgress,
+            onCompletion = onCompletion
+        )
     }
 
     fun setSpeed(speed: Float) {

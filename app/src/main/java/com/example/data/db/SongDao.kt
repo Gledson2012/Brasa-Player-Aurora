@@ -139,13 +139,13 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs WHERE isFavorite = 1")
     suspend fun getFavoriteSongCount(): Int
 
-    @Query("SELECT SUM(playCount) FROM songs")
+    @Query("SELECT COALESCE(SUM(playCount), 0) FROM songs")
     suspend fun getTotalPlayCount(): Int
 
-    @Query("SELECT SUM(durationMs) FROM songs")
+    @Query("SELECT COALESCE(SUM(durationMs), 0) FROM songs")
     suspend fun getTotalDurationMs(): Long
 
-    @Query("SELECT SUM(durationMs) FROM songs WHERE playCount > 0")
+    @Query("SELECT COALESCE(SUM(durationMs * playCount), 0) FROM songs WHERE playCount > 0")
     suspend fun getTotalListenedDurationMs(): Long
 
     @Query("SELECT artist, COUNT(*) as count FROM songs WHERE playCount > 0 GROUP BY artist ORDER BY count DESC LIMIT :limit")

@@ -4,6 +4,8 @@ Player Android offline com Jetpack Compose, Media3 e Room.
 
 Recursos incluídos: waveform visualizer com captura do áudio quando suportada pelo dispositivo, gestos no player, transição gradual entre faixas, scrobbling Last.fm, editor de letras LRC, editor de metadados/capas e backup/restauração em JSON.
 
+As faixas demonstrativas sintetizadas são criadas apenas em builds de debug. Builds de release iniciam com a biblioteca vazia e importam somente o áudio do usuário.
+
 ## Executar localmente
 
 Pré-requisito: [Android Studio](https://developer.android.com/studio).

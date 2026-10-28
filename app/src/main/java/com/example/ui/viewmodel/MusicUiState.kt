@@ -28,7 +28,8 @@ data class MusicUiState(
     val sleepTimerRemainingSeconds: Int? = null,
     val sleepTimerEndAtTrackEnd: Boolean = false,
     val playbackError: String? = null,
-    val onboardingCompleted: Boolean = false,
+    /** `null` while the persisted onboarding preference is still loading. */
+    val onboardingCompleted: Boolean? = null,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val allSongs: List<Song> = emptyList(),

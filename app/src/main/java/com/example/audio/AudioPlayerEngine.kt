@@ -810,8 +810,13 @@ class AudioPlayerEngine(
         _currentPositionMs.value = pos
         if (isUsingSynth) {
             synthGenerator.seekTo(pos)
+            // Restarting the synthesizer creates a new AudioTrack/session, so
+            // the equalizer and waveform capture must follow the new session.
+            equalizerEngine.bindAudioSession(synthGenerator.getAudioSessionId(), synthGenerator)
+            waveformCapture.attach(synthGenerator.getAudioSessionId())
+        } else {
+            exoPlayer?.seekTo(pos)
         }
-        exoPlayer?.seekTo(pos)
     }
 
     fun playNext() {
@@ -841,10 +846,24 @@ class AudioPlayerEngine(
             // Check if next item is already in ExoPlayer's playlist
             val player = exoPlayer!!
             if (player.mediaItemCount > 1) {
-                // Gapless mode: seek to next item in playlist
+                // Gapless mode: seek to next item in playlist. Only take this
+                // shortcut when ExoPlayer's next item is really the song chosen
+                // above; otherwise an unavailable track could be skipped in.
                 val currentExoIndex = player.currentMediaItemIndex
-                if (currentExoIndex < player.mediaItemCount - 1) {
+                val nextExoIndex = currentExoIndex + 1
+                if (
+                    nextExoIndex < player.mediaItemCount &&
+                    player.getMediaItemAt(nextExoIndex).mediaId == nextSong.id.toString()
+                ) {
+                    val shouldFadeIn = fadeInNextTrack
+                    fadeInNextTrack = false
+                    val targetGain = equalizerEngine.getOutputGain()
+                    // A crossfade leaves the player at volume 0. Restore the
+                    // target gain for manual skips and fade the new item in
+                    // when the transition came from a crossfade.
+                    player.volume = if (shouldFadeIn && _isPlaying.value) 0f else targetGain
                     player.seekToNextMediaItem()
+                    if (shouldFadeIn && _isPlaying.value) startFadeIn(targetGain)
                     return
                 }
             }
@@ -876,7 +895,13 @@ class AudioPlayerEngine(
             val player = exoPlayer!!
             if (player.mediaItemCount > 1) {
                 val currentExoIndex = player.currentMediaItemIndex
-                if (currentExoIndex > 0) {
+                val previousExoIndex = currentExoIndex - 1
+                if (
+                    previousExoIndex >= 0 &&
+                    player.getMediaItemAt(previousExoIndex).mediaId == prevSong.id.toString()
+                ) {
+                    // Never keep a muted volume left by an interrupted crossfade.
+                    player.volume = equalizerEngine.getOutputGain()
                     player.seekToPreviousMediaItem()
                     return
                 }
@@ -885,11 +910,15 @@ class AudioPlayerEngine(
         playSong(prevSong)
     }
 
-    private fun handleTrackCompletion(fromNaturalEnd: Boolean = false) {
+    private fun handleTrackCompletion(
+        fromNaturalEnd: Boolean = false,
+        fromCrossfade: Boolean = false
+    ) {
         // A real end event must win over the crossfade coroutine. ExoPlayer can
         // report isPlaying=false before STATE_ENDED, which used to make both
-        // paths return without ever advancing the queue.
-        if (isCrossfadeTransitioning && !fromNaturalEnd) return
+        // paths return without ever advancing the queue. The crossfade path is
+        // the one legitimate caller allowed through while the flag is set.
+        if (isCrossfadeTransitioning && !fromNaturalEnd && !fromCrossfade) return
         if (fromNaturalEnd) {
             crossfadeTransitionJob?.cancel()
             crossfadeTransitionJob = null
@@ -1042,6 +1071,9 @@ class AudioPlayerEngine(
         synthGenerator.stop()
         waveformCapture.release()
         exoPlayer?.stop()
+        // A crossfade may have left the output muted. Never carry that state
+        // into a later resume after playback was stopped at the end of a queue.
+        restorePlaybackVolume()
     }
 
     private fun maybeStartCrossfade(currentMs: Long, totalMs: Long) {
@@ -1055,19 +1087,18 @@ class AudioPlayerEngine(
         crossfadeTransitionJob = engineScope.launch(Dispatchers.Main) {
             try {
                 val steps = 10
-                val originalVolume = exoPlayer?.volume ?: 1f
-                val originalSynthVolume = equalizerEngine.getOutputGain()
+                val targetGain = equalizerEngine.getOutputGain()
                 repeat(steps) { step ->
                     if (!isActive || !_isPlaying.value) return@launch
                     val factor = 1f - ((step + 1).toFloat() / steps)
-                    exoPlayer?.volume = originalVolume * factor
-                    synthGenerator.setMasterVolume(originalSynthVolume * factor)
+                    exoPlayer?.volume = targetGain * factor
+                    synthGenerator.setMasterVolume(targetGain * factor)
                     delay((crossfadeMs / steps).coerceAtLeast(20L))
                 }
                 if (isActive && _isPlaying.value) {
                     crossfadeTransitionJob = null
                     fadeInNextTrack = true
-                    handleTrackCompletion()
+                    handleTrackCompletion(fromCrossfade = true)
                     if (!_isPlaying.value) fadeInNextTrack = false
                 }
             } finally {

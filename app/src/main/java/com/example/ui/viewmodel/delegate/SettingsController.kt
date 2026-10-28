@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,8 +51,14 @@ class SettingsController(
 
     val themeSettings: StateFlow<ThemeConfig> = themeConfig
 
-    val onboardingCompleted: StateFlow<Boolean> = themeDataStore.onboardingCompletedFlow
-        .stateIn(scope, SharingStarted.Eagerly, false)
+    /**
+     * `null` means the preference has not been loaded yet. The UI must show a
+     * loading state instead of assuming onboarding is pending, otherwise a
+     * returning user sees the onboarding screen flash on every cold start.
+     */
+    val onboardingCompleted: StateFlow<Boolean?> = themeDataStore.onboardingCompletedFlow
+        .map { completed: Boolean -> completed }
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     fun completeOnboarding() {
         scope.launch {
@@ -227,18 +234,17 @@ class SettingsController(
         }
     }
 
-    fun restoreBackup(context: Application, uri: Uri, onMessage: (String?) -> Unit): List<com.example.data.model.Song>? {
-        var songs: List<com.example.data.model.Song>? = null
+    fun restoreBackup(context: Application, uri: Uri, onMessage: (String?) -> Unit) {
         scope.launch {
             try {
-                songs = withContext(Dispatchers.IO) {
+                val songs = withContext(Dispatchers.IO) {
                     backupManager.restore(context, uri) { message ->
                         scope.launch(Dispatchers.Main) {
                             onMessage(message)
                         }
                     }
                 }
-                onMessage("Backup restaurado: ${songs?.size ?: 0} música(s).")
+                onMessage("Backup restaurado: ${songs.size} música(s).")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -247,6 +253,5 @@ class SettingsController(
             delay(3500)
             onMessage(null)
         }
-        return songs
     }
 }
