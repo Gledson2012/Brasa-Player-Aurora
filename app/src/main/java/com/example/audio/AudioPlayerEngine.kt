@@ -114,6 +114,7 @@ class AudioPlayerEngine(
     // Bluetooth auto-pause: remember state before disconnect to resume on reconnect
     private var wasPlayingBeforeBluetoothDisconnect = false
     private var bluetoothReceiver: BluetoothReceiver? = null
+    private var bluetoothReceiverRegistered = false
 
     companion object {
         private const val TAG = "AudioPlayerEngine"
@@ -134,10 +135,11 @@ class AudioPlayerEngine(
 
     init {
         initExoPlayer()
-        registerBluetoothReceiver()
+        registerBluetoothReceiverIfNeeded()
     }
 
-    private fun registerBluetoothReceiver() {
+    private fun registerBluetoothReceiverIfNeeded() {
+        if (bluetoothReceiverRegistered) return
         bluetoothReceiver = BluetoothReceiver(
             onBluetoothDisconnected = {
                 if (_isPlaying.value) {
@@ -160,6 +162,7 @@ class AudioPlayerEngine(
         }
         try {
             context.registerReceiver(bluetoothReceiver, filter)
+            bluetoothReceiverRegistered = true
         } catch (e: Exception) {
             Log.w(TAG, "Could not register Bluetooth receiver", e)
         }
@@ -1146,6 +1149,7 @@ class AudioPlayerEngine(
             Log.w(TAG, "Could not unregister Bluetooth receiver", e)
         }
         bluetoothReceiver = null
+        bluetoothReceiverRegistered = false
         stopCurrentPlayback()
         engineJob.cancel()
         onSongChangedCallback = null

@@ -125,6 +125,8 @@ class EqualizerController(
     }
 
     // --- Custom Presets ---
+    private val customPresetCounter = AtomicLong(0)
+
     fun saveCustomPreset(name: String) {
         scope.launch {
             val cleanName = name.trim().take(100)
@@ -142,14 +144,23 @@ class EqualizerController(
                 virtualizer = currentEq.virtualizer.coerceIn(0, 100)
             )
             repository.saveCustomPreset(entity)
+            // Update local state with a stable ID that won't change
+            val stableId = "custom_preset_${customPresetCounter.incrementAndGet()}"
+            _equalizerState.value = _equalizerState.value.copy(
+                customPresets = _equalizerState.value.customPresets.map {
+                    if (it.id == entity.id) stableId else it.id
+                }
+            )
         }
     }
 
     fun deleteCustomPreset(presetId: String) {
         scope.launch {
+            // Accept both the old custom_${id} format and the new stable format
             val longId = presetId.removePrefix("custom_").toLongOrNull()
-            if (longId != null) {
-                repository.deleteCustomPreset(longId)
+            val numericId = presetId.removePrefix("custom_preset_").toLongOrNull()
+            if (longId != null || numericId != null) {
+                repository.deleteCustomPreset(longId ?: numericId)
             }
         }
     }
