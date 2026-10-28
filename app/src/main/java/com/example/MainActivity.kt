@@ -960,7 +960,7 @@ private fun OnboardingLoadingScreen() {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Carregando sua biblioteca…",
+                text = stringResource(R.string.onboarding_loading_message),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

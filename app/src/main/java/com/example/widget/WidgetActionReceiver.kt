@@ -35,7 +35,6 @@ class WidgetActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
-        Log.d(TAG, "onReceive action=$action")
         val pendingResult = goAsync()
         val appContext = context.applicationContext
 
@@ -46,10 +45,8 @@ class WidgetActionReceiver : BroadcastReceiver() {
         scope.launch {
             try {
                 val engine = AudioPlayerEngine.getOrCreateInstance(appContext)
-                Log.d(TAG, "engine currentSong=${engine.currentSong.value?.title}")
                 if (engine.currentSong.value == null) {
                     restoreLastQueue(appContext, engine)
-                    Log.d(TAG, "restored currentSong=${engine.currentSong.value?.title}")
                 }
 
                 when (action) {
@@ -80,7 +77,6 @@ class WidgetActionReceiver : BroadcastReceiver() {
             container.repository.getAllSongsOnce() to
                 container.repository.getUserSettingsOnce()
         }
-        Log.d(TAG, "restoreLastQueue songs=${songs.size} lastPlayed=${settings.lastPlayedSongId}")
         if (songs.isEmpty()) return
 
         val savedIndex = settings.lastPlayedSongId
