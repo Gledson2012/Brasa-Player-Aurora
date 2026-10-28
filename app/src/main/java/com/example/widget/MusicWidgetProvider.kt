@@ -194,6 +194,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
     private fun createActionIntent(context: Context, action: String): PendingIntent {
         val intent = Intent(context, WidgetActionReceiver::class.java).apply {
             this.action = action
+            // A force-stopped app is in the "stopped" package state. Without
+            // this flag the system silently drops the widget broadcast and the
+            // home screen controls cannot cold-start playback.
+            addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
         }
         return PendingIntent.getBroadcast(
             context, action.hashCode(), intent,

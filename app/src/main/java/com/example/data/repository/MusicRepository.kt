@@ -66,6 +66,10 @@ class MusicRepository(
         return userSettingsDao.getUserSettingsOnce() ?: UserSettingsEntity()
     }
 
+    suspend fun getAllSongsOnce(): List<Song> = withContext(Dispatchers.IO) {
+        songDao.getAllSongsOnce()
+    }
+
     // ---- Artist/Album/Genre Navigation ----
 
     suspend fun getAllArtists(): List<String> = withContext(Dispatchers.IO) { songDao.getAllArtists() }
