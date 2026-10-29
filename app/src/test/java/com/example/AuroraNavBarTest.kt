@@ -22,7 +22,7 @@ class AuroraNavBarTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun `AuroraNavBar renders all 6 navigation tabs and main container`() {
+    fun `AuroraNavBar renders the 5 primary destinations and main container`() {
         composeTestRule.setContent {
             MusicPlayerTheme {
                 AuroraNavBar(
@@ -37,24 +37,20 @@ class AuroraNavBarTest {
         // Main bar container
         composeTestRule.onNodeWithTag("main_bottom_nav").assertIsDisplayed()
 
-        // 6 tabs
         composeTestRule.onNodeWithTag("nav_item_0").assertIsDisplayed()
         composeTestRule.onNodeWithText("Início").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("nav_item_1").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Músicas").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Biblioteca").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("nav_item_2").assertIsDisplayed()
         composeTestRule.onNodeWithText("Playlists").assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag("nav_item_3").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Equalizador").assertIsDisplayed()
-
-        composeTestRule.onNodeWithTag("nav_item_4").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Temas").assertIsDisplayed()
-
         composeTestRule.onNodeWithTag("nav_item_5").assertIsDisplayed()
         composeTestRule.onNodeWithText("Rádio").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("nav_item_6").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Mais").assertIsDisplayed()
     }
 
     @Test
@@ -75,17 +71,14 @@ class AuroraNavBarTest {
         composeTestRule.onNodeWithTag("nav_item_1").performClick()
         assertEquals(1, selectedIndex)
 
-        composeTestRule.onNodeWithTag("nav_item_3").performClick()
-        assertEquals(3, selectedIndex)
-
         composeTestRule.onNodeWithTag("nav_item_5").performClick()
         assertEquals(5, selectedIndex)
 
         composeTestRule.onNodeWithTag("nav_item_2").performClick()
         assertEquals(2, selectedIndex)
 
-        composeTestRule.onNodeWithTag("nav_item_4").performClick()
-        assertEquals(4, selectedIndex)
+        composeTestRule.onNodeWithTag("nav_item_6").performClick()
+        assertEquals(6, selectedIndex)
 
         composeTestRule.onNodeWithTag("nav_item_0").performClick()
         assertEquals(0, selectedIndex)

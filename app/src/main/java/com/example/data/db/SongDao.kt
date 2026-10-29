@@ -61,7 +61,7 @@ interface SongDao {
 
     @Query("""
         SELECT * FROM songs 
-        WHERE (:query = '' OR title LIKE '%' || :query || '%' OR artist LIKE '%' || :query || '%' OR album LIKE '%' || :query || '%') 
+        WHERE (:query = '' OR title LIKE '%' || :query || '%' OR artist LIKE '%' || :query || '%' OR album LIKE '%' || :query || '%' OR genre LIKE '%' || :query || '%')
         ORDER BY 
             CASE WHEN :sort = 'TITLE' THEN LOWER(title) END ASC,
             CASE WHEN :sort = 'ARTIST' THEN LOWER(artist) END ASC,

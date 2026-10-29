@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.aistudio.musicplayer.qtzvka.R
 import com.example.data.model.Song
 
 @Composable
@@ -61,10 +62,10 @@ fun SongCoverArt(
                 )
             } else {
                 val drawableId = when (song.coverDrawableName) {
-                    "cover_synthwave" -> context.resources.getIdentifier("cover_synthwave", "drawable", context.packageName)
-                    "cover_lofi" -> context.resources.getIdentifier("cover_lofi", "drawable", context.packageName)
-                    "cover_acoustic" -> context.resources.getIdentifier("cover_acoustic", "drawable", context.packageName)
-                    "cover_electronic" -> context.resources.getIdentifier("cover_electronic", "drawable", context.packageName)
+                    "cover_synthwave" -> R.drawable.cover_synthwave
+                    "cover_lofi" -> R.drawable.cover_lofi
+                    "cover_acoustic" -> R.drawable.cover_acoustic
+                    "cover_electronic" -> R.drawable.cover_electronic
                     else -> 0
                 }
 

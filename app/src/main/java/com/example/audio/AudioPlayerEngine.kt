@@ -387,6 +387,22 @@ class AudioPlayerEngine(
         onFavoriteToggleCallback?.invoke(song)
     }
 
+    /**
+     * Keeps the currently playing snapshot in sync with a favorite change that
+     * may have come from the notification, widget or UI list.
+     */
+    fun updateFavoriteState(songId: Long, isFavorite: Boolean) {
+        _queue.value = _queue.value.map { song ->
+            if (song.id == songId) song.copy(isFavorite = isFavorite) else song
+        }
+        librarySongs = librarySongs.map { song ->
+            if (song.id == songId) song.copy(isFavorite = isFavorite) else song
+        }
+        _currentSong.value = _currentSong.value?.let { song ->
+            if (song.id == songId) song.copy(isFavorite = isFavorite) else song
+        }
+    }
+
     fun buildMediaItem(song: Song): MediaItem {
         val artworkUri = song.coverUri
             ?.takeIf { it.isNotBlank() }

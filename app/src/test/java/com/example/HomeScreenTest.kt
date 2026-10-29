@@ -73,7 +73,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `HomeScreen renders now playing card and metrics when songs exist`() {
+    fun `HomeScreen prioritizes now playing and recent music`() {
         var playerOpened = false
         var favoriteToggled = false
 
@@ -99,16 +99,12 @@ class HomeScreenTest {
             }
         }
 
-        // Check header branding and song info
-        composeTestRule.onNodeWithText("BRASA PLAYER AURORA").assertIsDisplayed()
+        // Check header, now-playing feature and current collection.
+        composeTestRule.onNodeWithText("BRASA PLAYER").assertIsDisplayed()
         composeTestRule.onAllNodesWithText("Aquarela").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithText("Toquinho").onFirst().assertIsDisplayed()
         composeTestRule.onNodeWithText("REPRODUZINDO AGORA").assertIsDisplayed()
-
-        // Check interactive metric items
-        composeTestRule.onAllNodesWithText("2").onFirst().assertIsDisplayed() // Metric value
-        composeTestRule.onNodeWithText("faixas").assertIsDisplayed()
-        composeTestRule.onNodeWithText("artistas").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Tocadas recentemente").assertIsDisplayed()
 
         // Test clicking "Tela cheia"
         composeTestRule.onNodeWithText("Tela cheia").assertIsDisplayed().performClick()

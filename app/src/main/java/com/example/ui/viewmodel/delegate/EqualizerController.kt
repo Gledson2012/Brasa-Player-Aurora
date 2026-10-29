@@ -45,16 +45,7 @@ class EqualizerController(
     }
 
     fun updateCustomPresets(customList: List<com.example.data.model.CustomPresetEntity>) {
-        val converted = customList.map {
-            EqualizerPreset(
-                id = "custom_${it.id}",
-                name = it.name,
-                bandLevels = listOf(it.band0, it.band1, it.band2, it.band3, it.band4),
-                bassBoost = it.bassBoost,
-                virtualizer = it.virtualizer,
-                isCustom = true
-            )
-        }
+        val converted = customList.map { it.toPreset() }
         _equalizerState.value = _equalizerState.value.copy(customPresets = converted)
     }
 
@@ -125,8 +116,6 @@ class EqualizerController(
     }
 
     // --- Custom Presets ---
-    private val customPresetCounter = AtomicLong(0)
-
     fun saveCustomPreset(name: String) {
         scope.launch {
             val cleanName = name.trim().take(100)
@@ -143,25 +132,43 @@ class EqualizerController(
                 bassBoost = currentEq.bassBoost.coerceIn(0, 100),
                 virtualizer = currentEq.virtualizer.coerceIn(0, 100)
             )
-            repository.saveCustomPreset(entity)
-            // Update local state with a stable ID that won't change
-            val stableId = "custom_preset_${customPresetCounter.incrementAndGet()}"
-            _equalizerState.value = _equalizerState.value.copy(
-                customPresets = _equalizerState.value.customPresets.map {
-                    if (it.id == entity.id) stableId else it.id
-                }
+            // The persisted preset is emitted back through repository.customPresets
+            // with its stable database id. Selecting it here keeps the UI in sync
+            // as soon as the new chip appears.
+            val presetId = repository.saveCustomPreset(entity)
+            val updated = _equalizerState.value.copy(
+                currentPresetId = customPresetId(presetId)
             )
+            _equalizerState.value = updated
+            onSettingsChanged?.invoke()
         }
     }
 
     fun deleteCustomPreset(presetId: String) {
         scope.launch {
-            // Accept both the old custom_${id} format and the new stable format
-            val longId = presetId.removePrefix("custom_").toLongOrNull()
-            val numericId = presetId.removePrefix("custom_preset_").toLongOrNull()
-            if (longId != null || numericId != null) {
-                repository.deleteCustomPreset(longId ?: numericId)
+            val numericId = customPresetNumericId(presetId) ?: return@launch
+            repository.deleteCustomPreset(numericId)
+            if (_equalizerState.value.currentPresetId == presetId) {
+                val updated = _equalizerState.value.copy(currentPresetId = "custom_user")
+                _equalizerState.value = updated
+                onSettingsChanged?.invoke()
             }
         }
     }
+
+    private fun CustomPresetEntity.toPreset() = EqualizerPreset(
+        id = customPresetId(id),
+        name = name,
+        bandLevels = listOf(band0, band1, band2, band3, band4),
+        bassBoost = bassBoost,
+        virtualizer = virtualizer,
+        isCustom = true
+    )
+
+    private fun customPresetId(id: Long): String = "custom_$id"
+
+    private fun customPresetNumericId(presetId: String): Long? =
+        presetId.removePrefix("custom_")
+            .toLongOrNull()
+            ?: presetId.removePrefix("custom_preset_").toLongOrNull()
 }

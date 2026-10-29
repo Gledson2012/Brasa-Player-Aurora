@@ -28,18 +28,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
@@ -57,9 +52,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,14 +89,10 @@ fun HomeScreen(
     onPlaySong: (List<Song>, Int) -> Unit,
     onOpenTracks: () -> Unit,
     onOpenPlaylists: () -> Unit,
-    onOpenStatistics: () -> Unit = {},
     onOpenBrowser: () -> Unit = {},
     onOpenPlayer: () -> Unit = {},
     onToggleFavorite: (Song) -> Unit = {},
     onShuffleAll: () -> Unit = {},
-    onPlayFavorites: () -> Unit = {},
-    onOpenEqualizer: () -> Unit = {},
-    onOpenRadio: () -> Unit = {},
     onCreatePlaylist: () -> Unit = {},
     onScanMedia: () -> Unit = {},
     currentPositionMs: Long = 0L,
@@ -117,15 +110,20 @@ fun HomeScreen(
     }
 
     // Category navigation filter chips
-    var selectedCategory by remember { mutableStateOf("Tudo") }
-    val categories = remember(recentlyPlayed, favoriteSongs, mostPlayed, playlists) {
+    var selectedCategory by rememberSaveable { mutableStateOf("Para você") }
+    val categories = remember(recentlyPlayed, allSongs, favoriteSongs, mostPlayed, playlists) {
         buildList {
-            add("Tudo")
-            if (recentlyPlayed.isNotEmpty()) add("Recentes")
+            if (allSongs.isNotEmpty() || playlists.isNotEmpty()) add("Para você")
+            if (recentlyPlayed.isNotEmpty() || allSongs.isNotEmpty()) add("Recentes")
             if (favoriteSongs.isNotEmpty()) add("Favoritas")
             if (mostPlayed.isNotEmpty()) add("Mais tocadas")
-            add("Artistas")
+            if (allSongs.isNotEmpty()) add("Artistas")
             if (playlists.isNotEmpty()) add("Playlists")
+        }
+    }
+    LaunchedEffect(categories, selectedCategory) {
+        if (selectedCategory !in categories) {
+            selectedCategory = categories.firstOrNull() ?: "Para você"
         }
     }
 
@@ -157,24 +155,12 @@ fun HomeScreen(
             .take(12)
     }
 
-    val totalArtistsCount = remember(allSongs) {
-        allSongs.map { it.artist }.distinct().count { it.isNotBlank() && it != "<unknown>" }
-    }
-
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                        MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            ),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // ───────────────────────────────────────────────
         // 1. Header with dynamic greeting and quick actions
@@ -186,23 +172,16 @@ fun HomeScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary
-                                )
-                            )
-                        ),
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.GraphicEq,
                         contentDescription = "Brasa Player",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(26.dp)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
@@ -210,15 +189,15 @@ fun HomeScreen(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "BRASA PLAYER AURORA",
+                        text = "BRASA PLAYER",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.3.sp
+                        letterSpacing = 1.5.sp
                     )
                     Text(
                         text = "$greeting $greetingEmoji",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -242,7 +221,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Shuffle,
@@ -279,54 +258,32 @@ fun HomeScreen(
         }
 
         // ───────────────────────────────────────────────
-        // 2. Interactive Metrics Row
-        // ───────────────────────────────────────────────
+        // Put the current track or library setup first; secondary filters follow it.
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                HomeMetricCard(
-                    value = allSongs.size.toString(),
-                    label = "faixas",
-                    icon = Icons.Default.MusicNote,
-                    accent = MaterialTheme.colorScheme.primary,
-                    onClick = onOpenTracks,
-                    modifier = Modifier.weight(1f)
+            if (currentSong != null) {
+                ContinueListeningCard(
+                    song = currentSong,
+                    isPlaying = isPlaying,
+                    currentPositionMs = currentPositionMs,
+                    durationMs = durationMs,
+                    onPlayPause = onPlayPause,
+                    onOpenPlayer = onOpenPlayer,
+                    onToggleFavorite = onToggleFavorite,
+                    onShuffleAll = onShuffleAll
                 )
-                HomeMetricCard(
-                    value = favoriteSongs.size.toString(),
-                    label = "favoritas",
-                    icon = Icons.Default.Favorite,
-                    accent = MaterialTheme.colorScheme.tertiary,
-                    onClick = {
-                        if (favoriteSongs.isNotEmpty()) onPlayFavorites() else onOpenTracks()
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                HomeMetricCard(
-                    value = playlists.size.toString(),
-                    label = "playlists",
-                    icon = Icons.AutoMirrored.Filled.QueueMusic,
-                    accent = MaterialTheme.colorScheme.secondary,
-                    onClick = onOpenPlaylists,
-                    modifier = Modifier.weight(1f)
-                )
-                HomeMetricCard(
-                    value = totalArtistsCount.toString(),
-                    label = "artistas",
-                    icon = Icons.Default.Person,
-                    accent = MaterialTheme.colorScheme.primary,
-                    onClick = onOpenBrowser,
-                    modifier = Modifier.weight(1f)
+            } else {
+                WelcomeCard(
+                    hasSongs = allSongs.isNotEmpty(),
+                    songCount = allSongs.size,
+                    onOpenTracks = onOpenTracks,
+                    onOpenPlaylists = onOpenPlaylists,
+                    onShuffleAll = onShuffleAll,
+                    onScanMedia = onScanMedia
                 )
             }
         }
 
-        // ───────────────────────────────────────────────
-        // 3. Category Filter Chips (Pílulas de filtragem)
-        // ───────────────────────────────────────────────
-        if (categories.size > 2) {
+        if (categories.size > 1) {
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -361,148 +318,9 @@ fun HomeScreen(
         }
 
         // ───────────────────────────────────────────────
-        // 4. Hero Card: Continue listening or Welcome / Empty
-        // ───────────────────────────────────────────────
-        item {
-            if (currentSong != null) {
-                ContinueListeningCard(
-                    song = currentSong,
-                    isPlaying = isPlaying,
-                    currentPositionMs = currentPositionMs,
-                    durationMs = durationMs,
-                    onPlayPause = onPlayPause,
-                    onOpenPlayer = onOpenPlayer,
-                    onToggleFavorite = onToggleFavorite,
-                    onShuffleAll = onShuffleAll
-                )
-            } else {
-                WelcomeCard(
-                    hasSongs = allSongs.isNotEmpty(),
-                    songCount = allSongs.size,
-                    onOpenTracks = onOpenTracks,
-                    onOpenPlaylists = onOpenPlaylists,
-                    onShuffleAll = onShuffleAll,
-                    onScanMedia = onScanMedia
-                )
-            }
-        }
-
-        // ───────────────────────────────────────────────
-        // 5. Quick Actions Hub (Acesso rápido)
-        // ───────────────────────────────────────────────
-        if (selectedCategory == "Tudo") {
-            item {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Acesso rápido",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        QuickActionCard(
-                            title = "Aleatório",
-                            subtitle = "Toda a biblioteca",
-                            icon = Icons.Default.Shuffle,
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primaryContainer,
-                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f)
-                            ),
-                            iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = onShuffleAll,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionCard(
-                            title = "Favoritas",
-                            subtitle = "${favoriteSongs.size} faixas",
-                            icon = Icons.Default.Favorite,
-                            colors = listOf(
-                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-                                MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            iconTint = MaterialTheme.colorScheme.tertiary,
-                            onClick = {
-                                if (favoriteSongs.isNotEmpty()) onPlayFavorites() else onOpenTracks()
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionCard(
-                            title = "Playlists",
-                            subtitle = "${playlists.size} coleções",
-                            icon = Icons.AutoMirrored.Filled.QueueMusic,
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                            ),
-                            iconTint = MaterialTheme.colorScheme.secondary,
-                            onClick = onOpenPlaylists,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        QuickActionCard(
-                            title = "Navegar",
-                            subtitle = "Artistas & Álbuns",
-                            icon = Icons.Default.Category,
-                            colors = listOf(
-                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                                MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = onOpenBrowser,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionCard(
-                            title = "Estatísticas",
-                            subtitle = "Métricas de escuta",
-                            icon = Icons.Default.BarChart,
-                            colors = listOf(
-                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f),
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            ),
-                            iconTint = MaterialTheme.colorScheme.tertiary,
-                            onClick = onOpenStatistics,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionCard(
-                            title = "Rádio",
-                            subtitle = "Estações ao vivo",
-                            icon = Icons.Default.Radio,
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                            ),
-                            iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = onOpenRadio,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
-
-        // ───────────────────────────────────────────────
         // 6. Section: Recently Played / Recently Added
         // ───────────────────────────────────────────────
-        if ((selectedCategory == "Tudo" || selectedCategory == "Recentes") && recentSongs.isNotEmpty()) {
+        if ((selectedCategory == "Para você" || selectedCategory == "Recentes") && recentSongs.isNotEmpty()) {
             item {
                 SongSection(
                     title = if (isActualRecent) "Tocadas recentemente" else "Adicionadas recentemente",
@@ -521,7 +339,7 @@ fun HomeScreen(
         // ───────────────────────────────────────────────
         // 7. Section: Favorites
         // ───────────────────────────────────────────────
-        if ((selectedCategory == "Tudo" || selectedCategory == "Favoritas") && favoriteList.isNotEmpty()) {
+        if (selectedCategory == "Favoritas" && favoriteList.isNotEmpty()) {
             item {
                 SongSection(
                     title = "Suas favoritas",
@@ -541,7 +359,7 @@ fun HomeScreen(
         // ───────────────────────────────────────────────
         // 8. Section: Most Played
         // ───────────────────────────────────────────────
-        if ((selectedCategory == "Tudo" || selectedCategory == "Mais tocadas") && popularSongs.isNotEmpty()) {
+        if (selectedCategory == "Mais tocadas" && popularSongs.isNotEmpty()) {
             item {
                 SongSection(
                     title = "Mais tocadas",
@@ -561,7 +379,7 @@ fun HomeScreen(
         // ───────────────────────────────────────────────
         // 9. Section: Featured Artists
         // ───────────────────────────────────────────────
-        if ((selectedCategory == "Tudo" || selectedCategory == "Artistas") && artistGroups.isNotEmpty()) {
+        if (selectedCategory == "Artistas" && artistGroups.isNotEmpty()) {
             item {
                 Column {
                     Row(
@@ -619,7 +437,7 @@ fun HomeScreen(
         // ───────────────────────────────────────────────
         // 10. Section: Playlists
         // ───────────────────────────────────────────────
-        if (selectedCategory == "Tudo" || selectedCategory == "Playlists") {
+        if (selectedCategory == "Para você" || selectedCategory == "Playlists") {
             item {
                 Column {
                     Row(
@@ -1001,78 +819,6 @@ private fun WelcomeCard(
                         Text("Abrir faixas")
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickActionCard(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    colors: List<Color>,
-    iconTint: Color = MaterialTheme.colorScheme.primary,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .height(112.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.linearGradient(colors))
-                .padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(iconTint.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(16.dp)
-                )
             }
         }
     }
@@ -1480,57 +1226,6 @@ private fun PlaylistPreviewCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun HomeMetricCard(
-    value: String,
-    label: String,
-    icon: ImageVector,
-    accent: Color = MaterialTheme.colorScheme.primary,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-        ),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.25f))
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(15.dp)
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = accent,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }

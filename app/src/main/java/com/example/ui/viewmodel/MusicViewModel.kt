@@ -463,7 +463,7 @@ class MusicViewModel(
         }
     }
 
-    fun selectTab(index: Int) { _selectedTab.value = index.coerceIn(0, 5) }
+    fun selectTab(index: Int) { _selectedTab.value = index.coerceIn(0, 6) }
     fun openFullPlayer() { _isFullPlayerOpen.value = true }
     fun closeFullPlayer() { _isFullPlayerOpen.value = false }
     fun openPlaylistDetail(playlist: PlaylistWithSongs) { _activePlaylistDetail.value = playlist }

@@ -64,6 +64,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,7 +116,7 @@ fun TracksScreen(
     onRelinkSong: (Song) -> Unit,
     onDeleteSong: (Song) -> Unit
 ) {
-    var selectedFilter by remember { mutableStateOf(TrackFilter.ALL) }
+    var selectedFilter by rememberSaveable { mutableStateOf(TrackFilter.ALL) }
     var showSortMenu by remember { mutableStateOf(false) }
 
     val visibleSongs by remember(songs, selectedFilter) {

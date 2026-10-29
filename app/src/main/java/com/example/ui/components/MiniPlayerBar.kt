@@ -47,7 +47,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
@@ -86,27 +85,19 @@ fun MiniPlayerBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
-                .shadow(8.dp, RoundedCornerShape(18.dp))
+                .shadow(4.dp, RoundedCornerShape(18.dp))
             .testTag("mini_player_bar")
             .clickable { context.hapticTick(); onBarClick() },
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color.Transparent
             ),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.98f),
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.46f),
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.98f)
-                            )
-                        )
-                    )
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
                 // Gradient Progress Indicator
                 Box(
@@ -120,12 +111,7 @@ fun MiniPlayerBar(
                             .fillMaxWidth(fraction = progress)
                             .fillMaxHeight()
                             .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.secondary
-                                    )
-                                )
+                                MaterialTheme.colorScheme.primary
                             )
                     )
                 }

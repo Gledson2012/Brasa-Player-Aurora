@@ -61,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -127,7 +128,7 @@ fun EqualizerScreen(
     onDeleteCustomPreset: (EqualizerPreset) -> Unit = {}
 ) {
     var showSaveDialog by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf(PresetCategory.ALL) }
+    var selectedCategory by rememberSaveable { mutableStateOf(PresetCategory.ALL) }
     val context = LocalContext.current
 
     val allPresets = remember(equalizerState.customPresets) {

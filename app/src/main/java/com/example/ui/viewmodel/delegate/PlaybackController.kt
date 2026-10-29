@@ -141,8 +141,22 @@ class PlaybackController(
 
     fun toggleFavorite(song: Song) {
         if (isRadioSong(song)) return
+        val currentSnapshot = playerEngine.currentSong.value
+        val base = if (currentSnapshot?.id == song.id) currentSnapshot else song
+        val newFavorite = !base.isFavorite
+        // Update the engine snapshot immediately so every player surface
+        // (mini player, full player, notification) reflects the tap.
+        playerEngine.updateFavoriteState(song.id, newFavorite)
         scope.launch {
-            repository.toggleFavorite(song)
+            try {
+                repository.setFavorite(song.id, newFavorite)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not update favorite state for ${song.id}", e)
+                // Revert engine state to match the previous DB state on failure
+                playerEngine.updateFavoriteState(song.id, base.isFavorite)
+            }
         }
     }
 

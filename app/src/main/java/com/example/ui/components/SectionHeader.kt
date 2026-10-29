@@ -1,7 +1,7 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
@@ -36,11 +35,11 @@ fun SectionHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
             .border(
-                BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
-                RoundedCornerShape(20.dp)
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
+                RoundedCornerShape(18.dp)
             )
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -48,22 +47,15 @@ fun SectionHeader(
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(15.dp))
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary
-                        )
-                    )
-                ),
+                .size(42.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(22.dp)
             )
         }

@@ -32,21 +32,21 @@ fun buildColorSchemeForPreset(theme: AppThemeType, forceLight: Boolean = false):
     return when (theme) {
         AppThemeType.MIDNIGHT_OLED -> darkColorScheme(
             primary = theme.primaryColor,
-            onPrimary = Color.White,
-            primaryContainer = Color(0xFF2A1448),
-            onPrimaryContainer = Color(0xFFE9D5FF),
+            onPrimary = Color(0xFF211A0B),
+            primaryContainer = Color(0xFF352B19),
+            onPrimaryContainer = Color(0xFFF2D99F),
             secondary = theme.secondaryColor,
-            onSecondary = Color.Black,
-            secondaryContainer = Color(0xFF00444D),
-            onSecondaryContainer = Color(0xFFB4F9FF),
+            onSecondary = Color(0xFF171A1D),
+            secondaryContainer = Color(0xFF292E34),
+            onSecondaryContainer = Color(0xFFD9DEE5),
             tertiary = theme.tertiaryColor,
             background = theme.surfaceDark,
-            onBackground = Color(0xFFF1F0F5),
-            surface = DarkOledSurface,
-            onSurface = Color(0xFFF1F0F5),
-            surfaceVariant = DarkOledSurfaceVariant,
-            onSurfaceVariant = Color(0xFFC7C2D6),
-            outline = Color(0xFF382F52)
+            onBackground = Color(0xFFF1F2F4),
+            surface = Color(0xFF15181C),
+            onSurface = Color(0xFFF1F2F4),
+            surfaceVariant = Color(0xFF20242A),
+            onSurfaceVariant = Color(0xFFADB4BE),
+            outline = Color(0xFF343A42)
         )
         AppThemeType.CYBERPUNK_NEON -> darkColorScheme(
             primary = theme.primaryColor,
@@ -528,7 +528,7 @@ fun MusicPlayerTheme(
         shapes = Shapes(
             small = RoundedCornerShape(12.dp),
             medium = RoundedCornerShape(18.dp),
-            large = RoundedCornerShape(28.dp)
+            large = RoundedCornerShape(24.dp)
         ),
         content = content
     )

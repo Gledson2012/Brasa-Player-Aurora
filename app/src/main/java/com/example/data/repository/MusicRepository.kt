@@ -35,6 +35,8 @@ class MusicRepository(
     private val userSettingsDao: UserSettingsDao,
     private val lyricsDao: LyricsDao
 ) {
+    private suspend fun <T> runIo(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
+
     val allSongs: Flow<List<Song>> = songDao.getAllSongs()
     val favoriteSongs: Flow<List<Song>> = songDao.getFavoriteSongs()
     val recentlyPlayed: Flow<List<Song>> = songDao.getRecentlyPlayedSongs()
@@ -66,44 +68,42 @@ class MusicRepository(
         return userSettingsDao.getUserSettingsOnce() ?: UserSettingsEntity()
     }
 
-    suspend fun getAllSongsOnce(): List<Song> = withContext(Dispatchers.IO) {
+    suspend fun getAllSongsOnce(): List<Song> = runIo {
         songDao.getAllSongsOnce()
     }
 
     // ---- Artist/Album/Genre Navigation ----
 
-    suspend fun getAllArtists(): List<String> = withContext(Dispatchers.IO) { songDao.getAllArtists() }
-    suspend fun getAllAlbums(): List<String> = withContext(Dispatchers.IO) { songDao.getAllAlbums() }
-    suspend fun getAllGenres(): List<String> = withContext(Dispatchers.IO) { songDao.getAllGenres() }
+    suspend fun getAllArtists(): List<String> = runIo { songDao.getAllArtists() }
+    suspend fun getAllAlbums(): List<String> = runIo { songDao.getAllAlbums() }
+    suspend fun getAllGenres(): List<String> = runIo { songDao.getAllGenres() }
 
     fun getSongsByArtist(artist: String): Flow<List<Song>> = songDao.getSongsByArtist(artist)
     fun getSongsByAlbum(album: String): Flow<List<Song>> = songDao.getSongsByAlbum(album)
     fun getSongsByGenre(genre: String): Flow<List<Song>> = songDao.getSongsByGenre(genre)
 
-    suspend fun getSongCountByArtist(artist: String): Int = withContext(Dispatchers.IO) { songDao.getSongCountByArtist(artist) }
-    suspend fun getSongCountByAlbum(album: String): Int = withContext(Dispatchers.IO) { songDao.getSongCountByAlbum(album) }
-    suspend fun getSongCountByGenre(genre: String): Int = withContext(Dispatchers.IO) { songDao.getSongCountByGenre(genre) }
+    suspend fun getSongCountByArtist(artist: String): Int = runIo { songDao.getSongCountByArtist(artist) }
+    suspend fun getSongCountByAlbum(album: String): Int = runIo { songDao.getSongCountByAlbum(album) }
+    suspend fun getSongCountByGenre(genre: String): Int = runIo { songDao.getSongCountByGenre(genre) }
 
     /**
      * Aggregates all listening statistics from the database.
      */
-    suspend fun getListeningStatistics(): com.example.data.model.ListeningStatistics {
-        return withContext(Dispatchers.IO) {
-            com.example.data.model.ListeningStatistics(
-                totalSongs = songDao.getTotalSongCount(),
-                favoriteSongs = songDao.getFavoriteSongCount(),
-                uniqueArtists = songDao.getUniqueArtistCount(),
-                uniqueAlbums = songDao.getUniqueAlbumCount(),
-                uniqueGenres = songDao.getUniqueGenreCount(),
-                totalPlayCount = songDao.getTotalPlayCount(),
-                totalLibraryDurationMs = songDao.getTotalDurationMs(),
-                totalListenedDurationMs = songDao.getTotalListenedDurationMs(),
-                topArtists = songDao.getTopArtists(),
-                topGenres = songDao.getTopGenres(),
-                topAlbums = songDao.getTopAlbums(),
-                mostPlayedSongs = songDao.getMostPlayedSongsOnce()
-            )
-        }
+    suspend fun getListeningStatistics(): com.example.data.model.ListeningStatistics = runIo {
+        com.example.data.model.ListeningStatistics(
+            totalSongs = songDao.getTotalSongCount(),
+            favoriteSongs = songDao.getFavoriteSongCount(),
+            uniqueArtists = songDao.getUniqueArtistCount(),
+            uniqueAlbums = songDao.getUniqueAlbumCount(),
+            uniqueGenres = songDao.getUniqueGenreCount(),
+            totalPlayCount = songDao.getTotalPlayCount(),
+            totalLibraryDurationMs = songDao.getTotalDurationMs(),
+            totalListenedDurationMs = songDao.getTotalListenedDurationMs(),
+            topArtists = songDao.getTopArtists(),
+            topGenres = songDao.getTopGenres(),
+            topAlbums = songDao.getTopAlbums(),
+            mostPlayedSongs = songDao.getMostPlayedSongsOnce()
+        )
     }
 
     suspend fun updateLastPlayedState(songId: Long?, positionMs: Long) {
@@ -204,6 +204,10 @@ class MusicRepository(
 
     suspend fun toggleFavorite(song: Song) {
         songDao.updateFavorite(song.id, !song.isFavorite)
+    }
+
+    suspend fun setFavorite(songId: Long, isFavorite: Boolean) {
+        songDao.updateFavorite(songId, isFavorite)
     }
 
     suspend fun recordSongPlayed(songId: Long) {

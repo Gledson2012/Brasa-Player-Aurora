@@ -36,7 +36,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
@@ -70,6 +70,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,6 +104,7 @@ import com.example.ui.screens.TracksScreen
 import com.example.ui.screens.RadiosScreen
 import com.example.ui.screens.BrowserScreen
 import com.example.ui.screens.StatisticsScreen
+import com.example.ui.screens.MoreScreen
 import com.example.ui.theme.MusicPlayerTheme
 import com.example.ui.viewmodel.MusicViewModel
 import com.example.ui.viewmodel.MusicUiState
@@ -189,6 +191,9 @@ class MainActivity : ComponentActivity() {
 
     private fun handleShortcutIntent(intent: Intent?) {
         val action = intent?.extras?.getString("shortcut_action") ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            getSystemService(ShortcutManager::class.java)?.reportShortcutUsed(action)
+        }
         // Defer to first composition via a shared flow so the ViewModel is ready
         viewModel.handleShortcutAction(action)
     }
@@ -268,6 +273,7 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     val lastFmAuthUrl = uiState.lastFmAuthUrl
     val playbackError = uiState.playbackError
     val snackbarHostState = remember { SnackbarHostState() }
+    val tabStateHolder = rememberSaveableStateHolder()
     val openRadioLink: (String) -> Unit = { url ->
         runCatching {
             context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
@@ -307,7 +313,12 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     }
 
     LaunchedEffect(scanStatusMessage) {
-        scanStatusMessage?.let { snackbarHostState.showSnackbar(it) }
+        scanStatusMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            // Consume the one-shot message so an identical message can be shown
+            // again later (e.g. two scans in a row with the same result).
+            viewModel.notifyScanStatusMessage(null)
+        }
     }
 
     val currentLyrics = uiState.currentLyrics
@@ -322,6 +333,11 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
 
     BackHandler(enabled = isFullPlayerOpen) {
         viewModel.closeFullPlayer()
+    }
+    BackHandler(
+        enabled = !isFullPlayerOpen && selectedTab == 2 && activePlaylistDetail != null
+    ) {
+        viewModel.closePlaylistDetail()
     }
 
     // Full-screen overlays sit above the tab content, so Back must close them
@@ -395,15 +411,7 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -411,7 +419,9 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 Column(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
                 ) {
                     // Mini Player Floating Bar
                     if (currentSong != null && !isFullPlayerOpen) {
@@ -446,13 +456,13 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .statusBarsPadding()
             ) {
                 AnimatedContent(
                 targetState = selectedTab,
                 transitionSpec = { fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300)) },
                 label = "tab_transition"
             ) { tab ->
+                tabStateHolder.SaveableStateProvider(key = tab) {
                 when (tab) {
                     0 -> HomeScreen(
                         currentSong = currentSong,
@@ -473,15 +483,8 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                                 viewModel.playSongFromList(allSongs.shuffled(), 0)
                             }
                         },
-                        onPlayFavorites = {
-                            if (favoriteSongs.isNotEmpty()) {
-                                viewModel.playSongFromList(favoriteSongs, 0)
-                            }
-                        },
                         onOpenTracks = { viewModel.selectTab(1) },
                         onOpenPlaylists = { viewModel.selectTab(2) },
-                        onOpenEqualizer = { viewModel.selectTab(3) },
-                        onOpenRadio = { viewModel.selectTab(5) },
                         onCreatePlaylist = { viewModel.showCreatePlaylistDialog() },
                         onScanMedia = {
                             if (ContextCompat.checkSelfPermission(context, audioPermission) == PackageManager.PERMISSION_GRANTED) {
@@ -489,10 +492,6 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                             } else {
                                 requestAudioPermissionLauncher.launch(audioPermission)
                             }
-                        },
-                        onOpenStatistics = {
-                            showStatistics = true
-                            viewModel.loadStatistics()
                         },
                         onOpenBrowser = { showBrowser = true }
                     )
@@ -604,7 +603,18 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                         isPlaying = isPlaying,
                         onTogglePlayPause = { viewModel.togglePlayPause() }
                     )
+
+                    6 -> MoreScreen(
+                        onOpenEqualizer = { viewModel.selectTab(3) },
+                        onOpenThemes = { viewModel.selectTab(4) },
+                        onOpenStatistics = {
+                            showStatistics = true
+                            viewModel.loadStatistics()
+                        },
+                        onOpenBrowser = { showBrowser = true }
+                    )
                 }
+                } // SaveableStateProvider
                 } // AnimatedContent
 
                 // Statistics Overlay
@@ -625,7 +635,6 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                         IconButton(
                             onClick = { showBrowser = false },
                             modifier = Modifier
-                                .statusBarsPadding()
                                 .padding(start = 4.dp)
                                 .align(Alignment.TopStart)
                         ) {
@@ -656,7 +665,6 @@ fun MainAppContent(viewModel: MusicViewModel, uiState: MusicUiState) {
                         IconButton(
                             onClick = { showStatistics = false },
                             modifier = Modifier
-                                .statusBarsPadding()
                                 .padding(start = 4.dp)
                                 .align(Alignment.TopStart)
                         ) {

@@ -64,6 +64,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,8 +120,8 @@ fun PlaylistsScreen(
     onRemoveSongFromPlaylist: (playlistId: Long, songId: Long) -> Unit
 ) {
     var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
-    var playlistQuery by remember { mutableStateOf("") }
-    var sortOrder by remember { mutableStateOf(PlaylistSortOrder.RECENT) }
+    var playlistQuery by rememberSaveable { mutableStateOf("") }
+    var sortOrder by rememberSaveable { mutableStateOf(PlaylistSortOrder.RECENT) }
     var showSortMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -815,7 +816,7 @@ fun PlaylistDetailView(
     val gradient = PLAYLIST_GRADIENTS.getOrElse(playlistWithSongs.playlist.gradientIndex) { PLAYLIST_GRADIENTS[0] }
     val isCustomPlaylist = playlistWithSongs.playlist.id > 0
     var showAddSongsDialog by remember { mutableStateOf(false) }
-    var trackSearchQuery by remember { mutableStateOf("") }
+    var trackSearchQuery by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
 
     val displayedSongs by remember(playlistWithSongs.songs, trackSearchQuery) {

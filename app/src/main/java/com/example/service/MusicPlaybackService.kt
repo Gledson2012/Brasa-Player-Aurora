@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -119,11 +120,7 @@ class MusicPlaybackService : MediaLibraryService() {
             },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            Notification.Builder(this)
-        }
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
         return builder
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.playback_notification_idle_text))
@@ -131,7 +128,7 @@ class MusicPlaybackService : MediaLibraryService() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_TRANSPORT)
-            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
     }
 

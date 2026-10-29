@@ -34,12 +34,12 @@ enum class AppThemeType(
     val isDarkPreset: Boolean = true
 ) {
     MIDNIGHT_OLED(
-        title = "Midnight OLED",
-        subtitle = "Preto profundo com roxo neon",
-        primaryColor = Color(0xFF9D4EDD),
-        secondaryColor = Color(0xFF00F0FF),
-        surfaceDark = Color(0xFF07050B),
-        tertiaryColor = Color(0xFFFF007F),
+        title = "Noir & Amber",
+        subtitle = "Grafite elegante com âmbar suave",
+        primaryColor = Color(0xFFE5B85C),
+        secondaryColor = Color(0xFF9AA4B2),
+        surfaceDark = Color(0xFF0D0F12),
+        tertiaryColor = Color(0xFF80CBC4),
         isDarkPreset = true
     ),
     CYBERPUNK_NEON(

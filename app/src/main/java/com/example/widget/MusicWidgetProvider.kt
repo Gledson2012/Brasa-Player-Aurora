@@ -11,6 +11,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.RemoteViews
 import com.aistudio.musicplayer.qtzvka.R
+import com.example.MainActivity
 import com.example.audio.AudioPlayerEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -162,6 +163,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
         // Tap on the widget opens the app
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?: Intent(context, MainActivity::class.java)
         val pendingLaunch = PendingIntent.getActivity(
             context, 0, launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
