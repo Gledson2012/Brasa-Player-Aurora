@@ -1,8 +1,12 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,16 +45,20 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +72,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,6 +85,7 @@ import com.example.ui.components.SongCoverArt
 import com.example.ui.components.formatTimeMs
 import java.util.Calendar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     currentSong: Song?,
@@ -155,342 +165,283 @@ fun HomeScreen(
             .take(12)
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        // ───────────────────────────────────────────────
-        // 1. Header with dynamic greeting and quick actions
-        // ───────────────────────────────────────────────
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.GraphicEq,
-                        contentDescription = "Brasa Player",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-                Spacer(Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "BRASA PLAYER",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    )
-                    Text(
-                        text = "$greeting $greetingEmoji",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isPlaying && currentSong != null) {
-                            "Ouvindo: ${currentSong.title}"
-                        } else if (allSongs.isNotEmpty()) {
-                            "${allSongs.size} faixas na sua coleção"
-                        } else {
-                            "Seu universo musical sem pressa"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                if (allSongs.isNotEmpty()) {
-                    IconButton(
-                        onClick = onShuffleAll,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Shuffle,
-                            contentDescription = "Misturar tudo",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+    Scaffold(
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            LargeTopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            text = "$greeting $greetingEmoji",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold
                         )
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = onOpenTracks,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Buscar faixas",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-            }
-        }
-
-        // ───────────────────────────────────────────────
-        // Put the current track or library setup first; secondary filters follow it.
-        item {
-            if (currentSong != null) {
-                ContinueListeningCard(
-                    song = currentSong,
-                    isPlaying = isPlaying,
-                    currentPositionMs = currentPositionMs,
-                    durationMs = durationMs,
-                    onPlayPause = onPlayPause,
-                    onOpenPlayer = onOpenPlayer,
-                    onToggleFavorite = onToggleFavorite,
-                    onShuffleAll = onShuffleAll
-                )
-            } else {
-                WelcomeCard(
-                    hasSongs = allSongs.isNotEmpty(),
-                    songCount = allSongs.size,
-                    onOpenTracks = onOpenTracks,
-                    onOpenPlaylists = onOpenPlaylists,
-                    onShuffleAll = onShuffleAll,
-                    onScanMedia = onScanMedia
-                )
-            }
-        }
-
-        if (categories.size > 1) {
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 2.dp)
-                ) {
-                    items(categories) { cat ->
-                        val isSelected = selectedCategory == cat
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { selectedCategory = cat },
-                            label = {
-                                Text(
-                                    text = cat,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
+                        Text(
+                            text = if (isPlaying && currentSong != null) {
+                                "Ouvindo: ${currentSong.title}"
+                            } else if (allSongs.isNotEmpty()) {
+                                "${allSongs.size} faixas na sua coleção"
+                            } else {
+                                "Seu universo musical sem pressa"
                             },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isSelected,
-                                borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                            )
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                }
-            }
-        }
-
-        // ───────────────────────────────────────────────
-        // 6. Section: Recently Played / Recently Added
-        // ───────────────────────────────────────────────
-        if ((selectedCategory == "Para você" || selectedCategory == "Recentes") && recentSongs.isNotEmpty()) {
-            item {
-                SongSection(
-                    title = if (isActualRecent) "Tocadas recentemente" else "Adicionadas recentemente",
-                    subtitle = if (isActualRecent) "Seu histórico recente" else "Novas faixas da biblioteca",
-                    songs = recentSongs,
-                    currentSongId = currentSong?.id,
-                    isPlaying = isPlaying,
-                    onPlaySong = onPlaySong,
-                    onActionClick = { onPlaySong(recentSongs, 0) },
-                    actionText = "Tocar todas",
-                    actionIcon = Icons.Default.PlayArrow
-                )
-            }
-        }
-
-        // ───────────────────────────────────────────────
-        // 7. Section: Favorites
-        // ───────────────────────────────────────────────
-        if (selectedCategory == "Favoritas" && favoriteList.isNotEmpty()) {
-            item {
-                SongSection(
-                    title = "Suas favoritas",
-                    subtitle = "Músicas que você mais ama",
-                    songs = favoriteList,
-                    currentSongId = currentSong?.id,
-                    isPlaying = isPlaying,
-                    onPlaySong = onPlaySong,
-                    onActionClick = { onPlaySong(favoriteList.shuffled(), 0) },
-                    actionText = "Aleatório",
-                    actionIcon = Icons.Default.Shuffle,
-                    accent = MaterialTheme.colorScheme.tertiary
-                )
-            }
-        }
-
-        // ───────────────────────────────────────────────
-        // 8. Section: Most Played
-        // ───────────────────────────────────────────────
-        if (selectedCategory == "Mais tocadas" && popularSongs.isNotEmpty()) {
-            item {
-                SongSection(
-                    title = "Mais tocadas",
-                    subtitle = "Os maiores sucessos da sua coleção",
-                    songs = popularSongs,
-                    currentSongId = currentSong?.id,
-                    isPlaying = isPlaying,
-                    onPlaySong = onPlaySong,
-                    onActionClick = { onPlaySong(popularSongs, 0) },
-                    actionText = "Tocar top faixas",
-                    actionIcon = Icons.Default.PlayArrow,
-                    showRankBadges = true
-                )
-            }
-        }
-
-        // ───────────────────────────────────────────────
-        // 9. Section: Featured Artists
-        // ───────────────────────────────────────────────
-        if (selectedCategory == "Artistas" && artistGroups.isNotEmpty()) {
-            item {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Artistas em destaque",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Com base na sua coleção",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                },
+                actions = {
+                    if (allSongs.isNotEmpty()) {
+                        IconButton(onClick = onShuffleAll) {
+                            Icon(Icons.Default.Shuffle, "Misturar tudo")
                         }
-
-                        TextButton(
-                            onClick = onOpenBrowser,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "Ver todos",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
+                        IconButton(onClick = onOpenTracks) {
+                            Icon(Icons.Default.Search, "Buscar faixas")
                         }
                     }
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                )
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item {
+                if (currentSong != null) {
+                    ContinueListeningCard(
+                        song = currentSong,
+                        isPlaying = isPlaying,
+                        currentPositionMs = currentPositionMs,
+                        durationMs = durationMs,
+                        onPlayPause = onPlayPause,
+                        onOpenPlayer = onOpenPlayer,
+                        onToggleFavorite = onToggleFavorite,
+                        onShuffleAll = onShuffleAll
+                    )
+                } else {
+                    WelcomeCard(
+                        hasSongs = allSongs.isNotEmpty(),
+                        songCount = allSongs.size,
+                        onOpenTracks = onOpenTracks,
+                        onOpenPlaylists = onOpenPlaylists,
+                        onShuffleAll = onShuffleAll,
+                        onScanMedia = onScanMedia
+                    )
+                }
+            }
 
-                    Spacer(Modifier.height(10.dp))
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(artistGroups, key = { it.key }) { entry ->
-                            ArtistHomeCard(
-                                artistName = entry.key,
-                                songs = entry.value,
-                                onClick = { onPlaySong(entry.value, 0) }
+            if (categories.size > 1) {
+                item {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) {
+                        items(categories) { cat ->
+                            val isSelected = selectedCategory == cat
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedCategory = cat },
+                                label = { Text(text = cat, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
                         }
                     }
                 }
             }
-        }
 
-        // ───────────────────────────────────────────────
-        // 10. Section: Playlists
-        // ───────────────────────────────────────────────
-        if (selectedCategory == "Para você" || selectedCategory == "Playlists") {
-            item {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Suas playlists",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "${playlists.size} coleções organizadas",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+            // ───────────────────────────────────────────────
+            // 6. Section: Recently Played / Recently Added
+            // ───────────────────────────────────────────────
+            if ((selectedCategory == "Para você" || selectedCategory == "Recentes") && recentSongs.isNotEmpty()) {
+                item {
+                    SongSection(
+                        title = if (isActualRecent) "Tocadas recentemente" else "Adicionadas recentemente",
+                        subtitle = if (isActualRecent) "Seu histórico recente" else "Novas faixas da biblioteca",
+                        songs = recentSongs,
+                        currentSongId = currentSong?.id,
+                        isPlaying = isPlaying,
+                        onPlaySong = onPlaySong,
+                        onActionClick = { onPlaySong(recentSongs, 0) },
+                        actionText = "Tocar todas",
+                        actionIcon = Icons.Default.PlayArrow
+                    )
+                }
+            }
+
+            // ───────────────────────────────────────────────
+            // 7. Section: Favorites
+            // ───────────────────────────────────────────────
+            if (selectedCategory == "Favoritas" && favoriteList.isNotEmpty()) {
+                item {
+                    SongSection(
+                        title = "Suas favoritas",
+                        subtitle = "Músicas que você mais ama",
+                        songs = favoriteList,
+                        currentSongId = currentSong?.id,
+                        isPlaying = isPlaying,
+                        onPlaySong = onPlaySong,
+                        onActionClick = { onPlaySong(favoriteList.shuffled(), 0) },
+                        actionText = "Aleatório",
+                        actionIcon = Icons.Default.Shuffle,
+                        accent = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+            }
+
+            // ───────────────────────────────────────────────
+            // 8. Section: Most Played
+            // ───────────────────────────────────────────────
+            if (selectedCategory == "Mais tocadas" && popularSongs.isNotEmpty()) {
+                item {
+                    SongSection(
+                        title = "Mais tocadas",
+                        subtitle = "Os maiores sucessos da sua coleção",
+                        songs = popularSongs,
+                        currentSongId = currentSong?.id,
+                        isPlaying = isPlaying,
+                        onPlaySong = onPlaySong,
+                        onActionClick = { onPlaySong(popularSongs, 0) },
+                        actionText = "Tocar top faixas",
+                        actionIcon = Icons.Default.PlayArrow,
+                        showRankBadges = true
+                    )
+                }
+            }
+
+            // ───────────────────────────────────────────────
+            // 9. Section: Featured Artists
+            // ───────────────────────────────────────────────
+            if (selectedCategory == "Artistas" && artistGroups.isNotEmpty()) {
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Artistas em destaque",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Com base na sua coleção",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            TextButton(
+                                onClick = onOpenBrowser,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Ver todos",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
 
-                        TextButton(
-                            onClick = onCreatePlaylist,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = "Criar",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
+                        Spacer(Modifier.height(10.dp))
+
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(artistGroups, key = { it.key }) { entry ->
+                                ArtistHomeCard(
+                                    artistName = entry.key,
+                                    songs = entry.value,
+                                    onClick = { onPlaySong(entry.value, 0) }
+                                )
+                            }
                         }
                     }
+                }
+            }
 
-                    Spacer(Modifier.height(10.dp))
+            // ───────────────────────────────────────────────
+            // 10. Section: Playlists
+            // ───────────────────────────────────────────────
+            if (selectedCategory == "Para você" || selectedCategory == "Playlists") {
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Suas playlists",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${playlists.size} coleções organizadas",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
 
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // Quick Add Playlist card
-                        item(key = "create_playlist_home_card") {
-                            CreatePlaylistHomeCard(onClick = onCreatePlaylist)
+                            TextButton(
+                                onClick = onCreatePlaylist,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "Criar",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
                         }
 
-                        items(playlists.take(10), key = { it.playlist.id }) { playlist ->
-                            PlaylistPreviewCard(
-                                playlist = playlist,
-                                onClick = onOpenPlaylists
-                            )
+                        Spacer(Modifier.height(10.dp))
+
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Quick Add Playlist card
+                            item(key = "create_playlist_home_card") {
+                                CreatePlaylistHomeCard(onClick = onCreatePlaylist)
+                            }
+
+                            items(playlists.take(10), key = { it.playlist.id }) { playlist ->
+                                PlaylistPreviewCard(
+                                    playlist = playlist,
+                                    onClick = onOpenPlaylists
+                                )
+                            }
                         }
                     }
                 }
@@ -500,7 +451,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ContinueListeningCard(
+internal fun ContinueListeningCard(
     song: Song,
     isPlaying: Boolean,
     currentPositionMs: Long,
@@ -516,21 +467,12 @@ private fun ContinueListeningCard(
             .clip(RoundedCornerShape(24.dp))
             .clickable(onClick = onOpenPlayer),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
-                            MaterialTheme.colorScheme.surface
-                        )
-                    )
-                )
                 .padding(16.dp)
         ) {
             Column {
