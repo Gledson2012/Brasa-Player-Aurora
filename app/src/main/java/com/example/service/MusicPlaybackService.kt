@@ -366,24 +366,5 @@ class MusicPlaybackService : MediaLibraryService() {
             )
         }
 
-        override fun onPlay() {
-            engine.resume()
-        }
-
-        override fun onPause() {
-            engine.pause()
-        }
-
-        override fun onSkipToNext() {
-            engine.playNext()
-        }
-
-        override fun onSkipToPrevious() {
-            engine.playPrevious()
-        }
-
-        override fun onSeekTo(positionMs: Long) {
-            engine.seekTo(positionMs)
-        }
     }
 }
