@@ -261,7 +261,6 @@ class MusicPlaybackService : MediaLibraryService() {
                 .add(Player.COMMAND_SET_REPEAT_MODE)
                 .add(Player.COMMAND_SET_SHUFFLE_MODE)
                 .add(Player.COMMAND_PLAY_PAUSE)
-                .add(Player.COMMAND_SEEK_TO_POSITION)
                 .add(Player.COMMAND_SEEK_TO_NEXT)
                 .add(Player.COMMAND_SEEK_TO_PREVIOUS)
                 .build()
