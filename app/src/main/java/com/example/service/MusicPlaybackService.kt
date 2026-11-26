@@ -260,6 +260,10 @@ class MusicPlaybackService : MediaLibraryService() {
             val playerCommands = connectionResult.availablePlayerCommands.buildUpon()
                 .add(Player.COMMAND_SET_REPEAT_MODE)
                 .add(Player.COMMAND_SET_SHUFFLE_MODE)
+                .add(Player.COMMAND_PLAY_PAUSE)
+                .add(Player.COMMAND_SEEK_TO_POSITION)
+                .add(Player.COMMAND_SEEK_TO_NEXT)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
                 .build()
             return MediaSession.ConnectionResult.accept(sessionCommands, playerCommands)
         }
@@ -361,6 +365,26 @@ class MusicPlaybackService : MediaLibraryService() {
                     engine.currentPositionMs.value
                 )
             )
+        }
+
+        override fun onPlay() {
+            engine.resume()
+        }
+
+        override fun onPause() {
+            engine.pause()
+        }
+
+        override fun onSkipToNext() {
+            engine.playNext()
+        }
+
+        override fun onSkipToPrevious() {
+            engine.playPrevious()
+        }
+
+        override fun onSeekTo(positionMs: Long) {
+            engine.seekTo(positionMs)
         }
     }
 }

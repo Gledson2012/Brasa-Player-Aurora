@@ -79,10 +79,16 @@ class WidgetActionReceiver : BroadcastReceiver() {
         }
         if (songs.isEmpty()) return
 
+        // Usa apenas faixas disponíveis. Evita reconstruir a fila com músicas
+        // excluídas ou cujo arquivo sumiu, o que resultaria em "não disponível"
+        // quando o widget tentasse reproduzir a faixa salva.
+        val availableSongs = songs.filter { it.isAvailable }
+        if (availableSongs.isEmpty()) return
+
         val savedIndex = settings.lastPlayedSongId
-            ?.let { id -> songs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
+            ?.let { id -> availableSongs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
             ?: 0
-        engine.setQueue(songs, startIndex = savedIndex, autoPlay = false)
+        engine.setQueue(availableSongs, startIndex = savedIndex, autoPlay = false)
         engine.setPlaybackSpeed(settings.playbackSpeed)
         engine.setCrossfadeSeconds(settings.crossfadeSeconds)
         engine.setRepeatMode(
@@ -91,9 +97,9 @@ class WidgetActionReceiver : BroadcastReceiver() {
         )
         engine.setShuffleMode(settings.isShuffle)
 
-        val restored = songs.getOrNull(savedIndex)
+        val restored = availableSongs.getOrNull(savedIndex)
         if (settings.lastPlayedSongId != null && restored?.id == settings.lastPlayedSongId) {
-            engine.seekTo(settings.lastPlaybackPositionMs)
+            engine.seekTo(settings.lastPlaybackPositionMs.coerceAtMost(restored.durationMs.coerceAtLeast(0L)))
         }
     }
 }
