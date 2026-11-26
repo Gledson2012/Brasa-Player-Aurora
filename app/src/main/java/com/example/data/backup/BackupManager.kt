@@ -271,7 +271,10 @@ class BackupManager(
         .put("credentialsIncluded", false)
         .put("enabled", false)
 
-    private fun validateSnapshot(snapshot: MusicRepository.BackupSnapshot) {
+    // Exposed as `internal` for tests in the same module; the validation logic
+    // is the trust boundary for the backup format, so covering it with tests
+    // is worth the visibility increase.
+    internal fun validateSnapshot(snapshot: MusicRepository.BackupSnapshot) {
         require(snapshot.songs.size <= MAX_SONGS) { "Backup excede o limite de músicas permitido." }
         require(snapshot.playlists.size <= MAX_PLAYLISTS) { "Backup excede o limite de playlists permitido." }
         require(snapshot.crossRefs.size <= MAX_CROSS_REFS) {
